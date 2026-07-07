@@ -317,7 +317,7 @@ export default class MainScene extends Phaser.Scene {
     const statusGap = isMobile ? 44 : 14;
     const containZoom = Math.min((width - pad * 2) / this.isoMapWidth, (gameHeight - statusGap - pad) / this.isoMapHeight);
     const coverZoom = Math.max((width - pad * 2) / this.isoMapWidth, (gameHeight - statusGap - pad) / this.isoMapHeight);
-    this.minZoom = Math.max(0.3, containZoom); // never let viewport exceed map bounds
+    this.minZoom = 0.75; // minimum zoom where labels start to appear
     const zoom = isMobile ? Math.min(coverZoom, 1.05) : Math.min(containZoom, 1.15);
 
     this.cameras.main.setViewport(0, 0, width, gameHeight);
@@ -424,7 +424,7 @@ export default class MainScene extends Phaser.Scene {
 
     const cam = this.cameras.main;
     const bounds = cam.worldView;
-    const pad = 64; // safety padding in px to prevent pop-in at borders
+    const pad = 350; // safety padding in px to prevent pop-in of tall isometric/decorative structures
 
     const detailLevel = this.detailManager?.getCurrentLevel() || DETAIL_LEVELS.MEDIUM;
 
@@ -1361,8 +1361,9 @@ export default class MainScene extends Phaser.Scene {
         obj.outerBg.setAlpha(0.2);
         obj.bg.setScale(0.85);
       } else if (zoom < 1.0) {
-        // Medium Detail: show icons inside dots
-        obj.nameLabel.setVisible(false);
+        // Medium Detail: show icons inside dots, fade in name labels
+        obj.nameLabel.setVisible(true);
+        obj.nameLabel.setAlpha(0.1 + 0.9 * Phaser.Math.Percent(zoom, 0.75, 1.0));
         obj.icon.setVisible(true);
         obj.icon.setAlpha(Phaser.Math.Percent(zoom, 0.75, 1.0));
         obj.outerBg.setAlpha(0.65);
@@ -1370,7 +1371,7 @@ export default class MainScene extends Phaser.Scene {
       } else {
         // Full Detailed View: show names and icons
         obj.nameLabel.setVisible(true);
-        obj.nameLabel.setAlpha(Phaser.Math.Percent(zoom, 1.0, 1.25));
+        obj.nameLabel.setAlpha(1.0);
         obj.icon.setVisible(true);
         obj.icon.setAlpha(1.0);
         obj.outerBg.setAlpha(1.0);
