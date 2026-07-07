@@ -164,6 +164,8 @@ export default class MainScene extends Phaser.Scene {
       onClearCalibration: () => this.clearCalibration(),
       onEnableHeading: () => this.startHeading(),
       onToggleGyro: () => this.toggleGyro(),
+      onJoinRoom: (code, name) => this.joinMultiplayerLobby(code, name),
+      onLeaveRoom: () => this.leaveMultiplayerLobby(),
       onAddBot: () => this.addBotPlayer(),
       onClearBots: () => this.clearBots()
     });
@@ -2288,11 +2290,13 @@ export default class MainScene extends Phaser.Scene {
       });
 
       this.mqttClient.on('error', (err) => {
-        this.status.setText(`Multiplayer error: ${err.message}`);
+        console.error('MQTT error:', err);
+        this.status.setText(`Multiplayer connection failed.`);
+        if (this.panel) this.panel.updateMultiplayerLobby(null, [], false);
       });
       
       this.mqttClient.on('close', () => {
-        this.updateMpPanelLobby();
+        if (this.panel) this.panel.updateMultiplayerLobby(null, [], false);
       });
 
     } catch (error) {

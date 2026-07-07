@@ -650,139 +650,204 @@ export default class DestinationPanel {
       button.classList.remove('border-primary');
     }
   }
-
   createMultiplayerModal() {
     this.multiplayerModal = document.createElement('div');
     this.multiplayerModal.className = 'multiplayer-modal-overlay fixed inset-0 bg-black/70 backdrop-blur-sm z-[2000] hidden flex items-end sm:items-center justify-center';
     this.multiplayerModal.innerHTML = `
-      <div class="multiplayer-modal w-full max-w-md bg-card border-t-2 sm:border-2 border-primary sm:rounded-2xl shadow-2xl animate-slide-up">
+      <div class="multiplayer-modal w-full max-w-md bg-card border-t-2 sm:border-2 border-primary sm:rounded-2xl shadow-2xl">
         <div class="p-6 space-y-5">
+          <!-- Header -->
           <div class="flex items-center justify-between">
             <h2 class="text-xl font-bold text-primary flex items-center gap-2">
-              <i class="ph ph-users"></i> Multiplayer Lobby
+              <i class="ph ph-users"></i> Multiplayer
             </h2>
             <button class="close-multiplayer-btn p-1 text-muted-foreground hover:text-foreground hover:bg-muted rounded-full transition-all" type="button">
               <i class="ph ph-x text-lg"></i>
             </button>
           </div>
-          
-          <!-- Not Connected View -->
-          <div class="multiplayer-setup space-y-4">
-            <p class="text-xs text-muted-foreground leading-normal bg-accent/40 p-3 rounded-lg border border-border/50">
-              <strong>What is this?</strong> Connect to a room code to share your position on the map with other users in real time.
-            </p>
 
-            <div class="form-group space-y-2">
-              <label for="mp-username" class="block text-[10px] uppercase text-muted-foreground font-bold tracking-wider">Your Nickname</label>
-              <input type="text" id="mp-username" placeholder="e.g. Guest" required 
-                class="w-full bg-background/80 border border-input rounded-lg px-4 py-3 text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all" />
-            </div>
-            
-            <div class="form-group space-y-2">
-              <label for="mp-roomcode" class="block text-[10px] uppercase text-muted-foreground font-bold tracking-wider">Room Code</label>
-              <div class="flex gap-2">
-                <input type="text" id="mp-roomcode" placeholder="e.g. LOBBY" required style="text-transform: uppercase;"
-                  class="flex-1 bg-background/80 border border-input rounded-lg px-4 py-3 text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all" />
-                <button type="button" class="generate-room-btn px-3 py-2 bg-secondary border border-border text-foreground hover:bg-accent rounded-lg text-xs font-semibold transition-all">
-                  Generate
-                </button>
-              </div>
-            </div>
-            
-            <button type="button" class="join-room-btn w-full bg-primary hover:bg-primary/90 text-primary-foreground font-bold py-3 px-4 rounded-lg shadow-lg hover:shadow-primary/20 transition-all">
-              Connect to Lobby
-            </button>
+          <!-- ERROR banner (hidden by default) -->
+          <div class="mp-error hidden bg-destructive/15 border border-destructive/40 text-destructive text-xs p-3 rounded-lg flex items-center gap-2">
+            <i class="ph ph-warning-circle text-base flex-shrink-0"></i>
+            <span class="mp-error-text"></span>
           </div>
 
-          <!-- Connected View (Hidden by default) -->
-          <div class="multiplayer-lobby hidden space-y-4">
-            <div class="p-3 bg-secondary/50 rounded-lg border border-border/50 flex items-center justify-between">
-              <div>
-                <p class="text-[10px] uppercase text-muted-foreground font-bold tracking-wider">Active Room</p>
-                <p class="room-display text-sm font-bold text-foreground">-</p>
+          <!-- STATE 1: Name entry + choose action -->
+          <div class="mp-step-name space-y-4">
+            <div class="space-y-2">
+              <label for="mp-username" class="block text-[10px] uppercase text-muted-foreground font-bold tracking-wider">Your Nickname</label>
+              <input type="text" id="mp-username" placeholder="e.g. Stadium Fan" maxlength="20"
+                class="w-full bg-background/80 border border-input rounded-lg px-4 py-3 text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all" />
+            </div>
+            <div class="grid grid-cols-2 gap-3">
+              <button type="button" class="mp-create-btn flex-1 bg-primary hover:bg-primary/90 text-primary-foreground font-bold py-3 px-4 rounded-lg shadow-lg transition-all flex items-center justify-center gap-2">
+                <i class="ph ph-plus-circle text-lg"></i> Create Room
+              </button>
+              <button type="button" class="mp-join-btn flex-1 bg-secondary hover:bg-accent text-foreground font-bold py-3 px-4 rounded-lg border border-border transition-all flex items-center justify-center gap-2">
+                <i class="ph ph-sign-in text-lg"></i> Join Room
+              </button>
+            </div>
+          </div>
+
+          <!-- STATE 2a: Join with code (hidden) -->
+          <div class="mp-step-join hidden space-y-4">
+            <p class="text-xs text-muted-foreground">Ask the room creator for their 6-letter code.</p>
+            <div class="space-y-2">
+              <label for="mp-join-code" class="block text-[10px] uppercase text-muted-foreground font-bold tracking-wider">Room Code</label>
+              <input type="text" id="mp-join-code" placeholder="e.g. ABC123" maxlength="8" style="text-transform:uppercase; letter-spacing:0.15em;"
+                class="w-full bg-background/80 border border-input rounded-lg px-4 py-3 text-foreground text-sm text-center font-bold focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all" />
+            </div>
+            <div class="flex gap-3">
+              <button type="button" class="mp-back-btn px-4 py-3 bg-secondary border border-border text-foreground hover:bg-accent rounded-lg text-sm font-semibold transition-all">
+                <i class="ph ph-arrow-left"></i>
+              </button>
+              <button type="button" class="mp-do-join-btn flex-1 bg-primary hover:bg-primary/90 text-primary-foreground font-bold py-3 px-4 rounded-lg shadow-lg transition-all">
+                Connect
+              </button>
+            </div>
+          </div>
+
+          <!-- STATE 2b: Loading (hidden) -->
+          <div class="mp-step-loading hidden space-y-4 text-center py-4">
+            <div class="flex items-center justify-center gap-3 text-muted-foreground">
+              <div class="w-5 h-5 border-2 border-primary border-t-transparent rounded-full animate-spin"></div>
+              <span class="text-sm mp-loading-text">Connecting...</span>
+            </div>
+          </div>
+
+          <!-- STATE 3: Connected Lobby (hidden) -->
+          <div class="mp-step-lobby hidden space-y-4">
+            <!-- Room code display with copy -->
+            <div class="bg-primary/10 border border-primary/30 rounded-xl p-4 text-center space-y-1">
+              <p class="text-[10px] uppercase text-muted-foreground font-bold tracking-wider">Room Code — Share this!</p>
+              <div class="flex items-center justify-center gap-3">
+                <span class="room-display text-3xl font-black text-primary tracking-[0.25em]">------</span>
+                <button type="button" class="mp-copy-btn p-2 text-muted-foreground hover:text-primary hover:bg-primary/10 rounded-lg transition-all" title="Copy code">
+                  <i class="ph ph-copy text-base"></i>
+                </button>
               </div>
-              <div class="flex items-center gap-2">
-                <span class="flex h-2 w-2 relative">
+              <div class="flex items-center justify-center gap-1.5 pt-1">
+                <span class="flex h-1.5 w-1.5 relative">
                   <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
-                  <span class="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
+                  <span class="relative inline-flex rounded-full h-1.5 w-1.5 bg-green-500"></span>
                 </span>
-                <span class="text-xs text-muted-foreground font-semibold">Live</span>
+                <span class="text-[10px] text-green-500 font-bold uppercase tracking-wider">Live</span>
               </div>
             </div>
-
-            <!-- Instructions -->
-            <p class="text-[11px] text-muted-foreground leading-normal bg-primary/5 p-3 rounded-lg border border-primary/10">
-              <strong>How to add players:</strong> Share the Room Code above with friends. Once they join with the same code, you will see each other instantly.
-            </p>
 
             <!-- Bot Controls -->
             <div class="flex gap-2">
-              <button type="button" class="add-bot-btn flex-1 py-2 px-3 bg-primary/15 border border-primary/25 text-primary hover:bg-primary/25 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1.5">
-                <i class="ph ph-robot text-base"></i> Add Bot Player
+              <button type="button" class="add-bot-btn flex-1 py-2 px-3 bg-primary/10 border border-primary/20 text-primary hover:bg-primary/20 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1.5">
+                <i class="ph ph-robot text-base"></i> Add Bot
               </button>
-              <button type="button" class="clear-bots-btn px-3 py-2 bg-secondary border border-border text-foreground hover:bg-accent rounded-lg text-xs font-semibold transition-all">
+              <button type="button" class="clear-bots-btn px-3 py-2 bg-secondary border border-border text-muted-foreground hover:bg-accent rounded-lg text-xs font-semibold transition-all">
                 Clear Bots
               </button>
             </div>
 
-            <div class="space-y-2">
+            <!-- Player list -->
+            <div class="space-y-1.5">
               <label class="block text-[10px] uppercase text-muted-foreground font-bold tracking-wider">Players Online (<span class="player-count">1</span>/50)</label>
-              <div class="player-list max-h-40 overflow-y-auto divide-y divide-border/30 bg-background/50 rounded-lg border border-border/50 p-2 space-y-1">
-                <!-- Players will be added dynamically here -->
+              <div class="player-list max-h-48 overflow-y-auto space-y-1 bg-background/40 rounded-lg border border-border/50 p-2">
               </div>
             </div>
 
-            <button type="button" class="leave-room-btn w-full bg-destructive hover:bg-destructive/90 text-destructive-foreground font-bold py-3 px-4 rounded-lg shadow-lg transition-all">
-              Leave Room
+            <button type="button" class="leave-room-btn w-full bg-destructive/10 hover:bg-destructive/20 text-destructive border border-destructive/30 font-bold py-3 px-4 rounded-lg transition-all">
+              <i class="ph ph-door-open"></i> Leave Room
             </button>
           </div>
         </div>
       </div>
     `;
 
-    // Event Bindings
-    this.multiplayerModal.querySelector('.close-multiplayer-btn').addEventListener('click', () => {
-      this.closeMultiplayerModal();
-    });
+    // --- Wire up all events ---
+    const m = this.multiplayerModal;
 
-    const roomInput = this.multiplayerModal.querySelector('#mp-roomcode');
-    const nameInput = this.multiplayerModal.querySelector('#mp-username');
-    
-    // Auto-fill random username
+    const nameInput = m.querySelector('#mp-username');
+    const joinCodeInput = m.querySelector('#mp-join-code');
+
+    // Pre-fill saved name
     const randId = Math.floor(1000 + Math.random() * 9000);
-    nameInput.value = localStorage.getItem('stadium-mp-name') || `Guest_${randId}`;
+    nameInput.value = localStorage.getItem('stadium-mp-name') || `Fan_${randId}`;
 
-    this.multiplayerModal.querySelector('.generate-room-btn').addEventListener('click', () => {
-      roomInput.value = Math.random().toString(36).substring(2, 8).toUpperCase();
+    const showStep = (step) => {
+      ['mp-step-name', 'mp-step-join', 'mp-step-loading', 'mp-step-lobby'].forEach(cls => {
+        m.querySelector(`.${cls}`).classList.add('hidden');
+      });
+      m.querySelector(`.${step}`).classList.remove('hidden');
+    };
+
+    const showError = (msg) => {
+      const banner = m.querySelector('.mp-error');
+      m.querySelector('.mp-error-text').textContent = msg;
+      banner.classList.remove('hidden');
+      setTimeout(() => banner.classList.add('hidden'), 4000);
+    };
+
+    const getName = () => nameInput.value.trim();
+
+    // Close
+    m.querySelector('.close-multiplayer-btn').addEventListener('click', () => this.closeMultiplayerModal());
+    m.addEventListener('click', (e) => { if (e.target === m) this.closeMultiplayerModal(); });
+
+    // Create Room
+    m.querySelector('.mp-create-btn').addEventListener('click', () => {
+      const name = getName();
+      if (!name) { showError('Please enter a nickname first.'); return; }
+      localStorage.setItem('stadium-mp-name', name);
+      // Generate a random 6-char code
+      const code = Math.random().toString(36).substring(2, 8).toUpperCase();
+      showStep('mp-step-loading');
+      m.querySelector('.mp-loading-text').textContent = `Creating room ${code}...`;
+      this.handlers.onJoinRoom?.(code, name);
     });
 
-    this.multiplayerModal.querySelector('.join-room-btn').addEventListener('click', () => {
-      const roomCode = roomInput.value.trim().toUpperCase();
-      const playerName = nameInput.value.trim();
-      if (!roomCode || !playerName) return;
-
-      localStorage.setItem('stadium-mp-name', playerName);
-      this.handlers.onJoinRoom?.(roomCode, playerName);
+    // Go to Join step
+    m.querySelector('.mp-join-btn').addEventListener('click', () => {
+      const name = getName();
+      if (!name) { showError('Please enter a nickname first.'); return; }
+      showStep('mp-step-join');
+      joinCodeInput.value = '';
+      joinCodeInput.focus();
     });
 
-    this.multiplayerModal.querySelector('.leave-room-btn').addEventListener('click', () => {
+    // Back from join step
+    m.querySelector('.mp-back-btn').addEventListener('click', () => showStep('mp-step-name'));
+
+    // Do Join
+    m.querySelector('.mp-do-join-btn').addEventListener('click', () => {
+      const name = getName();
+      const code = joinCodeInput.value.trim().toUpperCase();
+      if (!code || code.length < 4) { showError('Enter a valid room code.'); return; }
+      localStorage.setItem('stadium-mp-name', name);
+      showStep('mp-step-loading');
+      m.querySelector('.mp-loading-text').textContent = `Joining room ${code}...`;
+      this.handlers.onJoinRoom?.(code, name);
+    });
+
+    // Also allow Enter key in join code input
+    joinCodeInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') m.querySelector('.mp-do-join-btn').click();
+    });
+
+    // Copy room code
+    m.querySelector('.mp-copy-btn').addEventListener('click', () => {
+      const code = m.querySelector('.room-display').textContent;
+      navigator.clipboard?.writeText(code).then(() => {
+        const btn = m.querySelector('.mp-copy-btn i');
+        btn.className = 'ph ph-check text-base';
+        setTimeout(() => { btn.className = 'ph ph-copy text-base'; }, 1500);
+      });
+    });
+
+    // Leave room
+    m.querySelector('.leave-room-btn').addEventListener('click', () => {
       this.handlers.onLeaveRoom?.();
     });
 
-    this.multiplayerModal.querySelector('.add-bot-btn').addEventListener('click', () => {
-      this.handlers.onAddBot?.();
-    });
-
-    this.multiplayerModal.querySelector('.clear-bots-btn').addEventListener('click', () => {
-      this.handlers.onClearBots?.();
-    });
-
-    // Close when clicking overlay backdrop
-    this.multiplayerModal.addEventListener('click', (e) => {
-      if (e.target === this.multiplayerModal) {
-        this.closeMultiplayerModal();
-      }
-    });
+    // Bots
+    m.querySelector('.add-bot-btn').addEventListener('click', () => this.handlers.onAddBot?.());
+    m.querySelector('.clear-bots-btn').addEventListener('click', () => this.handlers.onClearBots?.());
 
     document.body.appendChild(this.multiplayerModal);
   }
@@ -796,49 +861,49 @@ export default class DestinationPanel {
   }
 
   updateMultiplayerLobby(roomCode, playerList, isConnected) {
-    const setupEl = this.multiplayerModal.querySelector('.multiplayer-setup');
-    const lobbyEl = this.multiplayerModal.querySelector('.multiplayer-lobby');
-    const roomDisplay = this.multiplayerModal.querySelector('.room-display');
-    const playerCount = this.multiplayerModal.querySelector('.player-count');
-    const playerListEl = this.multiplayerModal.querySelector('.player-list');
-    
+    const m = this.multiplayerModal;
+    if (!m) return;
+
+    const showStep = (step) => {
+      ['mp-step-name', 'mp-step-join', 'mp-step-loading', 'mp-step-lobby'].forEach(cls => {
+        m.querySelector(`.${cls}`)?.classList.add('hidden');
+      });
+      m.querySelector(`.${step}`)?.classList.remove('hidden');
+    };
+
+    const roomDisplay = m.querySelector('.room-display');
+    const playerCount = m.querySelector('.player-count');
+    const playerListEl = m.querySelector('.player-list');
     const icon = this.floatingControls?.querySelector('.multiplayer-btn i');
     const button = this.floatingControls?.querySelector('.multiplayer-btn');
 
     if (isConnected) {
-      setupEl.classList.add('hidden');
-      lobbyEl.classList.remove('hidden');
-      roomDisplay.innerText = roomCode;
-      
-      const count = playerList.length;
-      playerCount.innerText = count.toString();
-      
-      playerListEl.innerHTML = '';
-      playerList.forEach(player => {
-        const item = document.createElement('div');
-        item.className = 'flex items-center justify-between py-1.5 px-2 text-xs font-semibold text-foreground';
-        item.innerHTML = `
-          <div class="flex items-center gap-2">
-            <i class="ph ph-user text-primary"></i>
-            <span>${player.name} ${player.isMe ? '<span class="text-[9px] bg-primary/20 text-primary border border-primary/30 rounded px-1 ml-1">You</span>' : ''}</span>
-          </div>
-          <span class="text-[10px] text-muted-foreground uppercase">${player.mode || '2d'}</span>
-        `;
-        playerListEl.appendChild(item);
-      });
+      showStep('mp-step-lobby');
+      if (roomDisplay) roomDisplay.innerText = roomCode;
+      if (playerCount) playerCount.innerText = String(playerList.length);
 
-      // Highlight multiplayer button
+      if (playerListEl) {
+        playerListEl.innerHTML = '';
+        playerList.forEach(player => {
+          const item = document.createElement('div');
+          item.className = 'flex items-center justify-between py-1.5 px-2 text-xs font-semibold rounded-lg hover:bg-accent/30 transition-colors';
+          item.innerHTML = `
+            <div class="flex items-center gap-2">
+              <i class="ph ph-user-circle text-primary text-base"></i>
+              <span>${player.name}${player.isMe ? ' <span class="text-[9px] bg-primary/20 text-primary border border-primary/30 rounded px-1 ml-1">You</span>' : ''}</span>
+            </div>
+            <span class="text-[10px] text-muted-foreground uppercase">${player.mode || '2d'}</span>
+          `;
+          playerListEl.appendChild(item);
+        });
+      }
+
       button?.classList.add('border-primary');
-      if (icon) {
-        icon.className = 'ph ph-users text-2xl text-primary';
-      }
+      if (icon) icon.className = 'ph ph-users text-2xl text-primary';
     } else {
-      setupEl.classList.remove('hidden');
-      lobbyEl.classList.add('hidden');
+      showStep('mp-step-name');
       button?.classList.remove('border-primary');
-      if (icon) {
-        icon.className = 'ph ph-users text-2xl text-muted-foreground';
-      }
+      if (icon) icon.className = 'ph ph-users text-2xl text-muted-foreground';
     }
   }
 
