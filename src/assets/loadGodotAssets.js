@@ -4,16 +4,16 @@
  * Loads and processes Godot tileset sprite sheets for use in the stadium map
  */
 
-import grassPng from '../../ASSETS/Modern tiles_Free/Sprout Lands - Sprites - Basic pack/Tilesets/Grass.png';
-import fencesPng from '../../ASSETS/Modern tiles_Free/Sprout Lands - Sprites - Basic pack/Tilesets/Fences.png';
-import doorsPng from '../../ASSETS/Modern tiles_Free/Sprout Lands - Sprites - Basic pack/Tilesets/Doors.png';
-import furniturePng from '../../ASSETS/Modern tiles_Free/Sprout Lands - Sprites - Basic pack/Objects/Basic Furniture.png';
+import grassPng from './modern_tiles/Grass.png';
+import fencesPng from './modern_tiles/Fences.png';
+import doorsPng from './modern_tiles/Doors.png';
+import furniturePng from './modern_tiles/Basic Furniture.png';
 
 // Sitting character sprites for detailed seats
-import adamSitPng from '../../ASSETS/Modern tiles_Free/Characters_free/Adam_sit_16x16.png';
-import alexSitPng from '../../ASSETS/Modern tiles_Free/Characters_free/Alex_sit_16x16.png';
-import ameliaSitPng from '../../ASSETS/Modern tiles_Free/Characters_free/Amelia_sit_16x16.png';
-import bobSitPng from '../../ASSETS/Modern tiles_Free/Characters_free/Bob_sit_16x16.png';
+import adamSitPng from './modern_tiles/Adam_sit_16x16.png';
+import alexSitPng from './modern_tiles/Alex_sit_16x16.png';
+import ameliaSitPng from './modern_tiles/Amelia_sit_16x16.png';
+import bobSitPng from './modern_tiles/Bob_sit_16x16.png';
 
 import { sliceTileset, TILESET_CONFIGS, generateDetailedSeatSprites } from './spriteExtractor.js';
 
