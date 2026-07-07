@@ -1,18 +1,18 @@
 import { cn } from '../lib/utils.js';
 
 // Card templates
-import cardV1 from '../../craftpix-net-751345-free-npc-quest-tcg-cards-pixel-art/PNG/Cards_color1/Civilian_card_version1/Civilian_card_version1.png';
-import cardV2 from '../../craftpix-net-751345-free-npc-quest-tcg-cards-pixel-art/PNG/Cards_color1/Civilian_card_version2/Civilian_card_version2.png';
-import cardV3 from '../../craftpix-net-751345-free-npc-quest-tcg-cards-pixel-art/PNG/Cards_color1/Civilian_card_version3/Civilian_card_version3.png';
+import cardV1 from '../assets/card_assets/Civilian_card_version1.png';
+import cardV2 from '../assets/card_assets/Civilian_card_version2.png';
+import cardV3 from '../assets/card_assets/Civilian_card_version3.png';
 
 // Cutout Objects
-import appleIcon from '../../craftpix-net-751345-free-npc-quest-tcg-cards-pixel-art/PNG/Cards_color1/Objects/apple.png';
-import coinIcon from '../../craftpix-net-751345-free-npc-quest-tcg-cards-pixel-art/PNG/Cards_color1/Objects/gold_coin.png';
-import redPotionIcon from '../../craftpix-net-751345-free-npc-quest-tcg-cards-pixel-art/PNG/Cards_color1/Objects/red_potion.png';
-import bluePotionIcon from '../../craftpix-net-751345-free-npc-quest-tcg-cards-pixel-art/PNG/Cards_color1/Objects/blue_potion.png';
-import mushroomIcon from '../../craftpix-net-751345-free-npc-quest-tcg-cards-pixel-art/PNG/Cards_color1/Objects/mushroom.png';
-import wingIcon from '../../craftpix-net-751345-free-npc-quest-tcg-cards-pixel-art/PNG/Cards_color1/Objects/butterfly_wing.png';
-import gemIcon from '../../craftpix-net-751345-free-npc-quest-tcg-cards-pixel-art/PNG/Cards_color1/Objects/jem.png';
+import appleIcon from '../assets/card_assets/apple.png';
+import coinIcon from '../assets/card_assets/gold_coin.png';
+import redPotionIcon from '../assets/card_assets/red_potion.png';
+import bluePotionIcon from '../assets/card_assets/blue_potion.png';
+import mushroomIcon from '../assets/card_assets/mushroom.png';
+import wingIcon from '../assets/card_assets/butterfly_wing.png';
+import gemIcon from '../assets/card_assets/jem.png';
 
 const cardConfigs = {
   v1: {
