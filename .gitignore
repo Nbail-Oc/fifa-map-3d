@@ -22,20 +22,21 @@ build/
 __MACOSX/
 
 # AI-generated raw assets
-ai_Assets/
+/ai_Assets/
 
 # Craftpix & asset packs (contains only PNG/PSD/etc. raw assets)
-ASSETS/
-PSD/
-Prototype/
-dialogue_asset/
-furniture/
-craftpix-net-622999-free-pixel-art-tiny-hero-sprites/
-craftpix-net-751345-free-npc-quest-tcg-cards-pixel-art/
+/ASSETS/
+/PSD/
+/Prototype/
+/dialogue_asset/
+/furniture/
+/craftpix-net-622999-free-pixel-art-tiny-hero-sprites/
+/craftpix-net-751345-free-npc-quest-tcg-cards-pixel-art/
 
 # Large raw source images in root
-idle.png
-walk.png
-COUPON.pdf
-COUPON.png
-Free Assets Craftpix!.url
+/idle.png
+/walk.png
+/COUPON.pdf
+/COUPON.png
+/Free Assets Craftpix!.url
+
