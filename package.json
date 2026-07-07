@@ -1,0 +1,26 @@
+{
+  "name": "stadium-navigator",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host 0.0.0.0",
+    "test": "node --experimental-vm-modules node_modules/jest/bin/jest.js"
+  },
+  "dependencies": {
+    "@phosphor-icons/web": "^2.1.2",
+    "class-variance-authority": "^0.7.1",
+    "clsx": "^2.1.1",
+    "phaser": "^3.90.0",
+    "tailwind-merge": "^3.6.0",
+    "vite": "^7.0.0"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4.3.2",
+    "@vitejs/plugin-basic-ssl": "^2.3.0",
+    "autoprefixer": "^10.5.2",
+    "jest": "^30.0.0",
+    "postcss": "^8.5.16",
+    "tailwindcss": "^4.3.2"
+  }
+}
