@@ -668,6 +668,10 @@ export default class DestinationPanel {
           
           <!-- Not Connected View -->
           <div class="multiplayer-setup space-y-4">
+            <p class="text-xs text-muted-foreground leading-normal bg-accent/40 p-3 rounded-lg border border-border/50">
+              <strong>What is this?</strong> Connect to a room code to share your position on the map with other users in real time.
+            </p>
+
             <div class="form-group space-y-2">
               <label for="mp-username" class="block text-[10px] uppercase text-muted-foreground font-bold tracking-wider">Your Nickname</label>
               <input type="text" id="mp-username" placeholder="e.g. Guest" required 
@@ -704,6 +708,21 @@ export default class DestinationPanel {
                 </span>
                 <span class="text-xs text-muted-foreground font-semibold">Live</span>
               </div>
+            </div>
+
+            <!-- Instructions -->
+            <p class="text-[11px] text-muted-foreground leading-normal bg-primary/5 p-3 rounded-lg border border-primary/10">
+              <strong>How to add players:</strong> Share the Room Code above with friends. Once they join with the same code, you will see each other instantly.
+            </p>
+
+            <!-- Bot Controls -->
+            <div class="flex gap-2">
+              <button type="button" class="add-bot-btn flex-1 py-2 px-3 bg-primary/15 border border-primary/25 text-primary hover:bg-primary/25 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1.5">
+                <i class="ph ph-robot text-base"></i> Add Bot Player
+              </button>
+              <button type="button" class="clear-bots-btn px-3 py-2 bg-secondary border border-border text-foreground hover:bg-accent rounded-lg text-xs font-semibold transition-all">
+                Clear Bots
+              </button>
             </div>
 
             <div class="space-y-2">
@@ -748,6 +767,14 @@ export default class DestinationPanel {
 
     this.multiplayerModal.querySelector('.leave-room-btn').addEventListener('click', () => {
       this.handlers.onLeaveRoom?.();
+    });
+
+    this.multiplayerModal.querySelector('.add-bot-btn').addEventListener('click', () => {
+      this.handlers.onAddBot?.();
+    });
+
+    this.multiplayerModal.querySelector('.clear-bots-btn').addEventListener('click', () => {
+      this.handlers.onClearBots?.();
     });
 
     // Close when clicking overlay backdrop

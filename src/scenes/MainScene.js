@@ -163,7 +163,9 @@ export default class MainScene extends Phaser.Scene {
       onCalibrate: (poiId) => this.addCalibrationPoint(poiId),
       onClearCalibration: () => this.clearCalibration(),
       onEnableHeading: () => this.startHeading(),
-      onToggleGyro: () => this.toggleGyro()
+      onToggleGyro: () => this.toggleGyro(),
+      onAddBot: () => this.addBotPlayer(),
+      onClearBots: () => this.clearBots()
     });
     this.panel.setMode(this.mode);
     this.updateCalibrationStatus();
@@ -2299,6 +2301,9 @@ export default class MainScene extends Phaser.Scene {
   }
 
   leaveMultiplayerLobby() {
+    // Clear any active bots
+    this.clearBots();
+
     if (this.heartbeatTimer) {
       clearInterval(this.heartbeatTimer);
       this.heartbeatTimer = null;
@@ -2491,5 +2496,119 @@ export default class MainScene extends Phaser.Scene {
       player.container.setPosition(targetX, targetY);
       player.container.setDepth(depth);
     });
+  }
+
+  getRandomWalkableTile() {
+    const rows = tileGrid.length;
+    const cols = tileGrid[0].length;
+    for (let attempts = 0; attempts < 1000; attempts++) {
+      const rx = Math.floor(Math.random() * cols);
+      const ry = Math.floor(Math.random() * rows);
+      if (isWalkable(rx, ry)) {
+        return { x: rx, y: ry };
+      }
+    }
+    return { x: 10, y: 10 };
+  }
+
+  addBotPlayer() {
+    if (!this.mqttClient || !this.mqttClient.connected || !this.mpRoomCode) {
+      this.status.setText('Join a room first before adding bots.');
+      return;
+    }
+
+    if (this.otherPlayersMap.size >= 49) {
+      this.status.setText('Lobby player limit (50) reached.');
+      return;
+    }
+
+    const botNames = ['Ronaldo', 'Messi', 'Mbappe', 'Neymar', 'Salah', 'Haaland', 'Kane', 'De Bruyne', 'Son', 'Modric', 'Bellingham', 'Vinicius', 'Zidane', 'Pelé', 'Maradona'];
+    const randName = botNames[Math.floor(Math.random() * botNames.length)];
+    const botId = 'bot_' + Math.random().toString(36).substring(2, 9);
+    const botName = `🤖 ${randName}`;
+
+    const spawn = this.getRandomWalkableTile();
+    const bot = {
+      id: botId,
+      name: botName,
+      tileX: spawn.x,
+      tileY: spawn.y
+    };
+
+    this.localBotsMap = this.localBotsMap || new Map();
+    this.botIntervals = this.botIntervals || new Map();
+
+    this.localBotsMap.set(botId, bot);
+
+    // Publish initial position
+    this.publishBotPosition(bot);
+
+    // Simulating movement updates
+    const interval = setInterval(() => {
+      const moves = [
+        { dx: 1, dy: 0 }, { dx: -1, dy: 0 }, { dx: 0, dy: 1 }, { dx: 0, dy: -1 },
+        { dx: 1, dy: 1 }, { dx: -1, dy: -1 }, { dx: 1, dy: -1 }, { dx: -1, dy: 1 },
+        { dx: 0, dy: 0 }
+      ];
+      
+      const randMove = moves[Math.floor(Math.random() * moves.length)];
+      const nextX = bot.tileX + randMove.dx;
+      const nextY = bot.tileY + randMove.dy;
+
+      if (isWalkable(nextX, nextY)) {
+        bot.tileX = nextX;
+        bot.tileY = nextY;
+        this.publishBotPosition(bot);
+      }
+    }, 1500 + Math.random() * 1000);
+
+    this.botIntervals.set(botId, interval);
+    this.status.setText(`Added simulated player: ${botName}`);
+  }
+
+  publishBotPosition(bot) {
+    if (!this.mqttClient || !this.mqttClient.connected || !this.mpRoomCode) return;
+    const payload = {
+      id: bot.id,
+      name: bot.name,
+      tileX: bot.tileX,
+      tileY: bot.tileY,
+      projection: this.projectionMode
+    };
+
+    try {
+      this.mqttClient.publish(
+        `stadium_nav/${this.mpRoomCode}/${bot.id}`,
+        JSON.stringify(payload),
+        { qos: 0, retain: false }
+      );
+    } catch (e) {
+      console.error('Error publishing bot position:', e);
+    }
+  }
+
+  clearBots() {
+    if (this.botIntervals) {
+      this.botIntervals.forEach((interval) => clearInterval(interval));
+      this.botIntervals.clear();
+    }
+
+    if (this.localBotsMap) {
+      this.localBotsMap.forEach((bot) => {
+        if (this.mqttClient && this.mqttClient.connected && this.mpRoomCode) {
+          try {
+            this.mqttClient.publish(
+              `stadium_nav/${this.mpRoomCode}/${bot.id}`,
+              JSON.stringify({ id: bot.id, leaving: true }),
+              { qos: 0, retain: false }
+            );
+          } catch (e) {
+            console.error(e);
+          }
+        }
+      });
+      this.localBotsMap.clear();
+    }
+    this.status.setText('Cleared all bots.');
   }
 }
