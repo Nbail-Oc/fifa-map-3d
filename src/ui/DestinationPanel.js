@@ -74,6 +74,7 @@ export default class DestinationPanel {
     this.createPoiCard();
     this.createFloatingControls();
     this.createMySeatModal();
+    this.createMultiplayerModal();
     this.createToast();
 
     this.mode = 'staff';
@@ -599,6 +600,12 @@ export default class DestinationPanel {
     this.floatingControls = document.createElement('div');
     this.floatingControls.className = 'fixed bottom-6 right-6 flex flex-col gap-3 z-[1001]';
     this.floatingControls.innerHTML = `
+      <button class="gyro-btn w-14 h-14 rounded-full bg-card border-2 border-border hover:bg-accent hover:border-primary shadow-xl transition-all active:scale-95 flex items-center justify-center" type="button" title="Toggle Tilt Control">
+        <i class="ph ph-arrows-out-cardinal text-2xl text-muted-foreground"></i>
+      </button>
+      <button class="multiplayer-btn w-14 h-14 rounded-full bg-card border-2 border-border hover:bg-accent hover:border-primary shadow-xl transition-all active:scale-95 flex items-center justify-center" type="button" title="Multiplayer Lobby">
+        <i class="ph ph-users text-2xl text-muted-foreground"></i>
+      </button>
       <button class="my-seat-btn w-14 h-14 rounded-full bg-card border-2 border-border hover:bg-accent hover:border-primary shadow-xl transition-all active:scale-95 flex items-center justify-center" type="button" title="Set my seat">
         <i class="ph ph-chair text-2xl text-primary"></i>
       </button>
@@ -620,7 +627,192 @@ export default class DestinationPanel {
       }
     });
 
+    this.floatingControls.querySelector('.gyro-btn').addEventListener('click', () => {
+      this.handlers.onToggleGyro?.();
+    });
+
+    this.floatingControls.querySelector('.multiplayer-btn').addEventListener('click', () => {
+      this.openMultiplayerModal();
+    });
+
     document.body.appendChild(this.floatingControls);
+  }
+
+  setGyroActive(active) {
+    const icon = this.floatingControls?.querySelector('.gyro-btn i');
+    const button = this.floatingControls?.querySelector('.gyro-btn');
+    if (!icon) return;
+    if (active) {
+      icon.className = 'ph ph-arrows-out-cardinal text-2xl text-primary';
+      button.classList.add('border-primary');
+    } else {
+      icon.className = 'ph ph-arrows-out-cardinal text-2xl text-muted-foreground';
+      button.classList.remove('border-primary');
+    }
+  }
+
+  createMultiplayerModal() {
+    this.multiplayerModal = document.createElement('div');
+    this.multiplayerModal.className = 'multiplayer-modal-overlay fixed inset-0 bg-black/70 backdrop-blur-sm z-[2000] hidden flex items-end sm:items-center justify-center';
+    this.multiplayerModal.innerHTML = `
+      <div class="multiplayer-modal w-full max-w-md bg-card border-t-2 sm:border-2 border-primary sm:rounded-2xl shadow-2xl animate-slide-up">
+        <div class="p-6 space-y-5">
+          <div class="flex items-center justify-between">
+            <h2 class="text-xl font-bold text-primary flex items-center gap-2">
+              <i class="ph ph-users"></i> Multiplayer Lobby
+            </h2>
+            <button class="close-multiplayer-btn p-1 text-muted-foreground hover:text-foreground hover:bg-muted rounded-full transition-all" type="button">
+              <i class="ph ph-x text-lg"></i>
+            </button>
+          </div>
+          
+          <!-- Not Connected View -->
+          <div class="multiplayer-setup space-y-4">
+            <div class="form-group space-y-2">
+              <label for="mp-username" class="block text-[10px] uppercase text-muted-foreground font-bold tracking-wider">Your Nickname</label>
+              <input type="text" id="mp-username" placeholder="e.g. Guest" required 
+                class="w-full bg-background/80 border border-input rounded-lg px-4 py-3 text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all" />
+            </div>
+            
+            <div class="form-group space-y-2">
+              <label for="mp-roomcode" class="block text-[10px] uppercase text-muted-foreground font-bold tracking-wider">Room Code</label>
+              <div class="flex gap-2">
+                <input type="text" id="mp-roomcode" placeholder="e.g. LOBBY" required style="text-transform: uppercase;"
+                  class="flex-1 bg-background/80 border border-input rounded-lg px-4 py-3 text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all" />
+                <button type="button" class="generate-room-btn px-3 py-2 bg-secondary border border-border text-foreground hover:bg-accent rounded-lg text-xs font-semibold transition-all">
+                  Generate
+                </button>
+              </div>
+            </div>
+            
+            <button type="button" class="join-room-btn w-full bg-primary hover:bg-primary/90 text-primary-foreground font-bold py-3 px-4 rounded-lg shadow-lg hover:shadow-primary/20 transition-all">
+              Connect to Lobby
+            </button>
+          </div>
+
+          <!-- Connected View (Hidden by default) -->
+          <div class="multiplayer-lobby hidden space-y-4">
+            <div class="p-3 bg-secondary/50 rounded-lg border border-border/50 flex items-center justify-between">
+              <div>
+                <p class="text-[10px] uppercase text-muted-foreground font-bold tracking-wider">Active Room</p>
+                <p class="room-display text-sm font-bold text-foreground">-</p>
+              </div>
+              <div class="flex items-center gap-2">
+                <span class="flex h-2 w-2 relative">
+                  <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+                  <span class="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
+                </span>
+                <span class="text-xs text-muted-foreground font-semibold">Live</span>
+              </div>
+            </div>
+
+            <div class="space-y-2">
+              <label class="block text-[10px] uppercase text-muted-foreground font-bold tracking-wider">Players Online (<span class="player-count">1</span>/50)</label>
+              <div class="player-list max-h-40 overflow-y-auto divide-y divide-border/30 bg-background/50 rounded-lg border border-border/50 p-2 space-y-1">
+                <!-- Players will be added dynamically here -->
+              </div>
+            </div>
+
+            <button type="button" class="leave-room-btn w-full bg-destructive hover:bg-destructive/90 text-destructive-foreground font-bold py-3 px-4 rounded-lg shadow-lg transition-all">
+              Leave Room
+            </button>
+          </div>
+        </div>
+      </div>
+    `;
+
+    // Event Bindings
+    this.multiplayerModal.querySelector('.close-multiplayer-btn').addEventListener('click', () => {
+      this.closeMultiplayerModal();
+    });
+
+    const roomInput = this.multiplayerModal.querySelector('#mp-roomcode');
+    const nameInput = this.multiplayerModal.querySelector('#mp-username');
+    
+    // Auto-fill random username
+    const randId = Math.floor(1000 + Math.random() * 9000);
+    nameInput.value = localStorage.getItem('stadium-mp-name') || `Guest_${randId}`;
+
+    this.multiplayerModal.querySelector('.generate-room-btn').addEventListener('click', () => {
+      roomInput.value = Math.random().toString(36).substring(2, 8).toUpperCase();
+    });
+
+    this.multiplayerModal.querySelector('.join-room-btn').addEventListener('click', () => {
+      const roomCode = roomInput.value.trim().toUpperCase();
+      const playerName = nameInput.value.trim();
+      if (!roomCode || !playerName) return;
+
+      localStorage.setItem('stadium-mp-name', playerName);
+      this.handlers.onJoinRoom?.(roomCode, playerName);
+    });
+
+    this.multiplayerModal.querySelector('.leave-room-btn').addEventListener('click', () => {
+      this.handlers.onLeaveRoom?.();
+    });
+
+    // Close when clicking overlay backdrop
+    this.multiplayerModal.addEventListener('click', (e) => {
+      if (e.target === this.multiplayerModal) {
+        this.closeMultiplayerModal();
+      }
+    });
+
+    document.body.appendChild(this.multiplayerModal);
+  }
+
+  openMultiplayerModal() {
+    this.multiplayerModal.classList.remove('hidden');
+  }
+
+  closeMultiplayerModal() {
+    this.multiplayerModal.classList.add('hidden');
+  }
+
+  updateMultiplayerLobby(roomCode, playerList, isConnected) {
+    const setupEl = this.multiplayerModal.querySelector('.multiplayer-setup');
+    const lobbyEl = this.multiplayerModal.querySelector('.multiplayer-lobby');
+    const roomDisplay = this.multiplayerModal.querySelector('.room-display');
+    const playerCount = this.multiplayerModal.querySelector('.player-count');
+    const playerListEl = this.multiplayerModal.querySelector('.player-list');
+    
+    const icon = this.floatingControls?.querySelector('.multiplayer-btn i');
+    const button = this.floatingControls?.querySelector('.multiplayer-btn');
+
+    if (isConnected) {
+      setupEl.classList.add('hidden');
+      lobbyEl.classList.remove('hidden');
+      roomDisplay.innerText = roomCode;
+      
+      const count = playerList.length;
+      playerCount.innerText = count.toString();
+      
+      playerListEl.innerHTML = '';
+      playerList.forEach(player => {
+        const item = document.createElement('div');
+        item.className = 'flex items-center justify-between py-1.5 px-2 text-xs font-semibold text-foreground';
+        item.innerHTML = `
+          <div class="flex items-center gap-2">
+            <i class="ph ph-user text-primary"></i>
+            <span>${player.name} ${player.isMe ? '<span class="text-[9px] bg-primary/20 text-primary border border-primary/30 rounded px-1 ml-1">You</span>' : ''}</span>
+          </div>
+          <span class="text-[10px] text-muted-foreground uppercase">${player.mode || '2d'}</span>
+        `;
+        playerListEl.appendChild(item);
+      });
+
+      // Highlight multiplayer button
+      button?.classList.add('border-primary');
+      if (icon) {
+        icon.className = 'ph ph-users text-2xl text-primary';
+      }
+    } else {
+      setupEl.classList.remove('hidden');
+      lobbyEl.classList.add('hidden');
+      button?.classList.remove('border-primary');
+      if (icon) {
+        icon.className = 'ph ph-users text-2xl text-muted-foreground';
+      }
+    }
   }
 
   // --- My Seat Dialogue Modal ---

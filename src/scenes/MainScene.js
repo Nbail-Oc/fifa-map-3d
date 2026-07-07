@@ -145,6 +145,10 @@ export default class MainScene extends Phaser.Scene {
     this.mySeatInfo = null;
     this.loadStoredSeat();
 
+    this.gyroScrollEnabled = false;
+    this.latestBeta = null;
+    this.latestGamma = null;
+
     this.panel = new DestinationPanel(pois, {
       onSelect: (poi) => this.routeToPoi(poi),
       onPoiSelect: (poi) => this.selectPoi(poi),
@@ -158,7 +162,8 @@ export default class MainScene extends Phaser.Scene {
       },
       onCalibrate: (poiId) => this.addCalibrationPoint(poiId),
       onClearCalibration: () => this.clearCalibration(),
-      onEnableHeading: () => this.startHeading()
+      onEnableHeading: () => this.startHeading(),
+      onToggleGyro: () => this.toggleGyro()
     });
     this.panel.setMode(this.mode);
     this.updateCalibrationStatus();
@@ -225,6 +230,10 @@ export default class MainScene extends Phaser.Scene {
       this.player.reset(this.player.tileX, this.player.tileY);
       if (this.activePath) this.drawRoute(this.activePath);
       this.layoutGameView();
+
+      // Update positions of other players and publish new rotation
+      this.updateOtherPlayersProjection();
+      this.publishMyPosition();
     });
     document.body.appendChild(rotateBtn);
     this.rotateBtnEl = rotateBtn;
@@ -343,6 +352,54 @@ export default class MainScene extends Phaser.Scene {
 
   update() {
     this.updatePlayerDepth();
+
+    // Publish position immediately when tile changes
+    if (this.mqttClient && this.mqttClient.connected) {
+      if (!this.lastPublishedTile) {
+        this.lastPublishedTile = { x: -1, y: -1 };
+      }
+      if (this.player.tileX !== this.lastPublishedTile.x || this.player.tileY !== this.lastPublishedTile.y) {
+        this.publishMyPosition();
+        this.lastPublishedTile = { x: this.player.tileX, y: this.player.tileY };
+      }
+    }
+
+    // Apply gyro tilt panning if enabled
+    if (this.gyroScrollEnabled && typeof this.latestBeta === 'number' && typeof this.latestGamma === 'number') {
+      const cam = this.cameras.main;
+      const targetBeta = 45; // neutral vertical tilt
+      const targetGamma = 0;  // neutral horizontal tilt
+      const deadzoneBeta = 10;
+      const deadzoneGamma = 8;
+      
+      let dBeta = this.latestBeta - targetBeta;
+      let dGamma = this.latestGamma - targetGamma;
+      
+      if (dBeta > 180) dBeta -= 360;
+      if (dBeta < -180) dBeta += 360;
+      
+      let speedX = 0;
+      let speedY = 0;
+      
+      if (Math.abs(dGamma) > deadzoneGamma) {
+        const sign = Math.sign(dGamma);
+        const excess = Math.abs(dGamma) - deadzoneGamma;
+        speedX = sign * excess * 0.35; // sensitivity
+      }
+      
+      if (Math.abs(dBeta) > deadzoneBeta) {
+        const sign = Math.sign(dBeta);
+        const excess = Math.abs(dBeta) - deadzoneBeta;
+        speedY = sign * excess * 0.35; // sensitivity
+      }
+      
+      if (speedX !== 0 || speedY !== 0) {
+        cam.stopFollow(); // Stop following player when panning via tilt
+        const zoomComp = 1 / cam.zoom;
+        cam.scrollX += speedX * zoomComp;
+        cam.scrollY += speedY * zoomComp;
+      }
+    }
     this.drawHeadingIndicator();
     this.updateCompass(); // Update compass rotation indicator
 
@@ -881,10 +938,34 @@ export default class MainScene extends Phaser.Scene {
     this.headingListener = null;
   }
 
+  async toggleGyro() {
+    if (this.gyroScrollEnabled) {
+      this.gyroScrollEnabled = false;
+      this.panel.setGyroActive(false);
+      this.status.setText('Tilt control disabled.');
+    } else {
+      if (!this.headingListener) {
+        await this.startHeading();
+      }
+      if (this.headingListener) {
+        this.gyroScrollEnabled = true;
+        this.panel.setGyroActive(true);
+        this.status.setText('Tilt phone to pan map.');
+      } else {
+        this.status.setText('Tilt control requires orientation permission.');
+      }
+    }
+  }
+
   handleHeading(event) {
     const webkitHeading = event.webkitCompassHeading;
     const alphaHeading = typeof event.alpha === 'number' ? 360 - event.alpha : null;
     const heading = typeof webkitHeading === 'number' ? webkitHeading : alphaHeading;
+
+    // Always store beta & gamma if present
+    if (typeof event.beta === 'number') this.latestBeta = event.beta;
+    if (typeof event.gamma === 'number') this.latestGamma = event.gamma;
+
     if (heading === null) return;
 
     this.headingDegrees = this.normalizeDegrees(heading);
@@ -1797,8 +1878,14 @@ export default class MainScene extends Phaser.Scene {
     // Reset camera boundaries and positioning
     this.layoutGameView();
 
+    // Reposition all other players for the new projection mode
+    this.updateOtherPlayersProjection();
+
     // Center camera on the player
     this.cameras.main.centerOn(this.player.sprite.x, this.player.sprite.y);
+
+    // Publish new projection mode to other players
+    this.publishMyPosition();
   }
 
   loadStoredSeat() {
@@ -2143,5 +2230,266 @@ export default class MainScene extends Phaser.Scene {
       }
     }
     return null;
+  }
+
+  joinMultiplayerLobby(roomCode, playerName) {
+    if (this.mqttClient) {
+      this.leaveMultiplayerLobby();
+    }
+
+    this.mpRoomCode = roomCode;
+    this.mpPlayerName = playerName;
+    this.mpPlayerId = 'p_' + Math.random().toString(36).substring(2, 9);
+    this.otherPlayersMap = new Map();
+
+    const brokerUrl = 'wss://broker.emqx.io:8084/mqtt';
+    const options = {
+      clientId: this.mpPlayerId,
+      clean: true,
+      connectTimeout: 5000,
+      reconnectPeriod: 2000
+    };
+
+    this.status.setText(`Connecting to lobby ${roomCode}...`);
+    try {
+      this.mqttClient = mqtt.connect(brokerUrl, options);
+
+      this.mqttClient.on('connect', () => {
+        this.status.setText(`Connected to Lobby ${roomCode} as ${playerName}`);
+        this.mqttClient.subscribe(`stadium_nav/${this.mpRoomCode}/+`, (err) => {
+          if (err) {
+            this.status.setText('Failed to subscribe to multiplayer channel.');
+          }
+        });
+
+        // Publish initial position
+        this.publishMyPosition();
+
+        // Start heartbeat publisher every 2 seconds
+        this.heartbeatTimer = setInterval(() => {
+          this.publishMyPosition();
+          this.checkMultiplayerTimeouts();
+        }, 2000);
+
+        this.updateMpPanelLobby();
+      });
+
+      this.mqttClient.on('message', (topic, message) => {
+        try {
+          const data = JSON.parse(message.toString());
+          if (!data || data.id === this.mpPlayerId) return;
+
+          this.handleOtherPlayerPosition(data);
+        } catch (e) {
+          console.error('Error parsing multiplayer message:', e);
+        }
+      });
+
+      this.mqttClient.on('error', (err) => {
+        this.status.setText(`Multiplayer error: ${err.message}`);
+      });
+      
+      this.mqttClient.on('close', () => {
+        this.updateMpPanelLobby();
+      });
+
+    } catch (error) {
+      this.status.setText(`Connection failed: ${error.message}`);
+    }
+  }
+
+  leaveMultiplayerLobby() {
+    if (this.heartbeatTimer) {
+      clearInterval(this.heartbeatTimer);
+      this.heartbeatTimer = null;
+    }
+
+    if (this.mqttClient) {
+      try {
+        this.mqttClient.publish(
+          `stadium_nav/${this.mpRoomCode}/${this.mpPlayerId}`,
+          JSON.stringify({ id: this.mpPlayerId, leaving: true }),
+          { qos: 0, retain: false }
+        );
+        this.mqttClient.end();
+      } catch (e) {
+        console.error(e);
+      }
+      this.mqttClient = null;
+    }
+
+    if (this.otherPlayersMap) {
+      this.otherPlayersMap.forEach((player) => {
+        if (player.container) player.container.destroy();
+      });
+      this.otherPlayersMap.clear();
+    }
+
+    this.mpRoomCode = null;
+    this.mpPlayerId = '';
+    this.status.setText('Left multiplayer room.');
+    
+    if (this.panel) {
+      this.panel.updateMultiplayerLobby('', [], false);
+    }
+  }
+
+  publishMyPosition() {
+    if (!this.mqttClient || !this.mqttClient.connected || !this.mpRoomCode) return;
+
+    const payload = {
+      id: this.mpPlayerId,
+      name: this.mpPlayerName,
+      tileX: this.player.tileX,
+      tileY: this.player.tileY,
+      projection: this.projectionMode
+    };
+
+    try {
+      this.mqttClient.publish(
+        `stadium_nav/${this.mpRoomCode}/${this.mpPlayerId}`,
+        JSON.stringify(payload),
+        { qos: 0, retain: false }
+      );
+    } catch (e) {
+      console.error('Multiplayer publish error:', e);
+    }
+  }
+
+  handleOtherPlayerPosition(data) {
+    if (data.leaving) {
+      this.removeOtherPlayer(data.id);
+      this.updateMpPanelLobby();
+      return;
+    }
+
+    // Limit to 50 players max
+    if (!this.otherPlayersMap.has(data.id) && this.otherPlayersMap.size >= 49) {
+      return; 
+    }
+
+    const world = this.tileToWorld(data.tileX, data.tileY);
+    const targetX = this.worldOffset.x + world.x;
+    const targetY = this.worldOffset.y + world.y;
+    
+    const r = this.projectionMode === '3d' ? this.rotateTile(data.tileX, data.tileY) : { x: data.tileX, y: data.tileY };
+    const depth = this.projectionMode === '3d' ? (r.x + r.y + 0.5) : 5;
+
+    let player = this.otherPlayersMap.get(data.id);
+
+    if (!player) {
+      const container = this.add.container(targetX, targetY).setDepth(depth);
+      const sprite = this.add.sprite(0, 0, 'player-idle').setOrigin(0.5, 0.5);
+      
+      sprite.play('idle');
+      
+      const colors = [0xff8888, 0x88ff88, 0x8888ff, 0xffff88, 0xff88ff, 0x88ffff];
+      const randColor = colors[Math.floor(Math.random() * colors.length)];
+      sprite.setTint(randColor);
+
+      const nameText = this.add.text(0, -22, data.name, {
+        fontFamily: 'Inter, Arial',
+        fontSize: '9px',
+        color: '#ffffff',
+        backgroundColor: 'rgba(15, 23, 42, 0.75)',
+        padding: { x: 4, y: 2 }
+      }).setOrigin(0.5);
+
+      container.add(sprite);
+      container.add(nameText);
+
+      player = {
+        id: data.id,
+        name: data.name,
+        container,
+        sprite,
+        nameText,
+        tileX: data.tileX,
+        tileY: data.tileY,
+        lastUpdate: Date.now(),
+        projectionMode: data.projection
+      };
+
+      this.otherPlayersMap.set(data.id, player);
+      this.updateMpPanelLobby();
+    } else {
+      player.lastUpdate = Date.now();
+      
+      if (player.tileX !== data.tileX || player.tileY !== data.tileY || player.projectionMode !== data.projection) {
+        player.tileX = data.tileX;
+        player.tileY = data.tileY;
+        player.projectionMode = data.projection;
+        
+        player.sprite.play('walk');
+        
+        this.tweens.add({
+          targets: player.container,
+          x: targetX,
+          y: targetY,
+          duration: 350,
+          onComplete: () => {
+            player.sprite.play('idle');
+          }
+        });
+      }
+      
+      player.container.setDepth(depth);
+    }
+  }
+
+  removeOtherPlayer(id) {
+    const player = this.otherPlayersMap.get(id);
+    if (player) {
+      if (player.container) player.container.destroy();
+      this.otherPlayersMap.delete(id);
+    }
+  }
+
+  checkMultiplayerTimeouts() {
+    const now = Date.now();
+    let changed = false;
+    this.otherPlayersMap.forEach((player, id) => {
+      if (now - player.lastUpdate > 10000) {
+        this.removeOtherPlayer(id);
+        changed = true;
+      }
+    });
+    if (changed) {
+      this.updateMpPanelLobby();
+    }
+  }
+
+  updateMpPanelLobby() {
+    if (!this.panel || !this.mpRoomCode) return;
+    
+    const players = [
+      { name: this.mpPlayerName, isMe: true, mode: this.projectionMode }
+    ];
+    
+    this.otherPlayersMap.forEach(player => {
+      players.push({
+        name: player.name,
+        isMe: false,
+        mode: player.projectionMode
+      });
+    });
+
+    const isConnected = this.mqttClient && this.mqttClient.connected;
+    this.panel.updateMultiplayerLobby(this.mpRoomCode, players, isConnected);
+  }
+
+  updateOtherPlayersProjection() {
+    if (!this.otherPlayersMap) return;
+    this.otherPlayersMap.forEach((player) => {
+      const world = this.tileToWorld(player.tileX, player.tileY);
+      const targetX = this.worldOffset.x + world.x;
+      const targetY = this.worldOffset.y + world.y;
+      
+      const r = this.projectionMode === '3d' ? this.rotateTile(player.tileX, player.tileY) : { x: player.tileX, y: player.tileY };
+      const depth = this.projectionMode === '3d' ? (r.x + r.y + 0.5) : 5;
+
+      player.container.setPosition(targetX, targetY);
+      player.container.setDepth(depth);
+    });
   }
 }
