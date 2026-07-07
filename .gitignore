@@ -1,0 +1,41 @@
+# Package managers & logs
+node_modules/
+.pnpm-store/
+pnpm-debug.log*
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Build outputs
+dist/
+build/
+
+# IDEs & System files
+.idea/
+.vscode/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+.DS_Store
+__MACOSX/
+
+# AI-generated raw assets
+ai_Assets/
+
+# Craftpix & asset packs (contains only PNG/PSD/etc. raw assets)
+ASSETS/
+PSD/
+Prototype/
+dialogue_asset/
+furniture/
+craftpix-net-622999-free-pixel-art-tiny-hero-sprites/
+craftpix-net-751345-free-npc-quest-tcg-cards-pixel-art/
+
+# Large raw source images in root
+idle.png
+walk.png
+COUPON.pdf
+COUPON.png
+Free Assets Craftpix!.url
