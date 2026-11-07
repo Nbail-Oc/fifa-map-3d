@@ -84,7 +84,9 @@ export default class DestinationPanel {
   // --- Search Bar & Autocomplete ---
   createSearchContainer() {
     this.searchContainer = document.createElement('div');
-    this.searchContainer.className = 'fixed top-[10px] left-4 z-[1001] w-[calc(100%-250px)] sm:w-[320px] md:w-[380px]';
+    // Width: on mobile shrink only to clear the floating controls (80px) + left margin (16px)
+    // On sm+ snap to fixed widths from the design system
+    this.searchContainer.className = 'fixed top-[12px] left-4 z-[1001] w-[calc(100%-100px)] max-w-[calc(100vw-24px)] xs:w-[calc(100%-90px)] sm:w-[320px] md:w-[380px]';
     this.searchContainer.innerHTML = `
       <div class="relative">
         <div class="flex items-center gap-3 bg-card border border-border rounded-full px-4 py-3 shadow-xl">
@@ -95,8 +97,8 @@ export default class DestinationPanel {
           </button>
         </div>
         
-        <div class="search-dropdown hidden absolute top-full mt-2 left-0 right-0 bg-popover border border-border rounded-xl shadow-2xl overflow-hidden backdrop-blur-lg">
-          <div class="p-4 space-y-4">
+        <div class="search-dropdown hidden absolute top-full mt-2 left-0 right-0 bg-popover border border-border rounded-xl shadow-2xl overflow-hidden backdrop-blur-lg max-h-[calc(100vh-100px)] overflow-y-auto">
+          <div class="p-5 sm:p-6 space-y-4 sm:space-y-5 pb-[max(1.25rem,env(safe-area-inset-bottom,0px))]">
             <div class="mode-toggle-section space-y-3">
               <div class="grid grid-cols-2 gap-2">
                 <button class="mode-button active px-4 py-2 text-xs font-semibold rounded-lg border transition-all" type="button" data-mode="staff">Staff Mode</button>
@@ -598,19 +600,22 @@ export default class DestinationPanel {
   // --- Floating Controls (Recenter & My Seat) ---
   createFloatingControls() {
     this.floatingControls = document.createElement('div');
-    this.floatingControls.className = 'fixed bottom-6 right-6 flex flex-col gap-3 z-[1001]';
+    // bottom: clears the iOS home-bar (safe-area-inset-bottom) + 1rem gap
+    // right: 1rem on mobile (xs), 1.5rem on sm+
+    this.floatingControls.className = 'fixed right-4 sm:right-6 flex flex-col gap-2 sm:gap-3 z-[1001]';
+    this.floatingControls.style.bottom = 'max(1rem, env(safe-area-inset-bottom, 0px))';
     this.floatingControls.innerHTML = `
-      <button class="gyro-btn w-14 h-14 rounded-full bg-card border-2 border-border hover:bg-accent hover:border-primary shadow-xl transition-all active:scale-95 flex items-center justify-center" type="button" title="Toggle Tilt Control">
-        <i class="ph ph-arrows-out-cardinal text-2xl text-muted-foreground"></i>
+      <button class="gyro-btn w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-card border-2 border-border hover:bg-accent hover:border-primary shadow-xl transition-all active:scale-95 flex items-center justify-center" type="button" title="Toggle Tilt Control">
+        <i class="ph ph-arrows-out-cardinal text-xl sm:text-2xl text-muted-foreground"></i>
       </button>
-      <button class="multiplayer-btn w-14 h-14 rounded-full bg-card border-2 border-border hover:bg-accent hover:border-primary shadow-xl transition-all active:scale-95 flex items-center justify-center" type="button" title="Multiplayer Lobby">
-        <i class="ph ph-users text-2xl text-muted-foreground"></i>
+      <button class="multiplayer-btn w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-card border-2 border-border hover:bg-accent hover:border-primary shadow-xl transition-all active:scale-95 flex items-center justify-center" type="button" title="Multiplayer Lobby">
+        <i class="ph ph-users text-xl sm:text-2xl text-muted-foreground"></i>
       </button>
-      <button class="my-seat-btn w-14 h-14 rounded-full bg-card border-2 border-border hover:bg-accent hover:border-primary shadow-xl transition-all active:scale-95 flex items-center justify-center" type="button" title="Set my seat">
-        <i class="ph ph-chair text-2xl text-primary"></i>
+      <button class="my-seat-btn w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-card border-2 border-border hover:bg-accent hover:border-primary shadow-xl transition-all active:scale-95 flex items-center justify-center" type="button" title="Set my seat">
+        <i class="ph ph-chair text-xl sm:text-2xl text-primary"></i>
       </button>
-      <button class="recenter-btn w-14 h-14 rounded-full bg-card border-2 border-border hover:bg-accent hover:border-primary shadow-xl transition-all active:scale-95 flex items-center justify-center" type="button" title="Recenter on player">
-        <i class="ph ph-compass text-2xl text-primary"></i>
+      <button class="recenter-btn w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-card border-2 border-border hover:bg-accent hover:border-primary shadow-xl transition-all active:scale-95 flex items-center justify-center" type="button" title="Recenter on player">
+        <i class="ph ph-compass text-xl sm:text-2xl text-primary"></i>
       </button>
     `;
 
@@ -654,8 +659,8 @@ export default class DestinationPanel {
     this.multiplayerModal = document.createElement('div');
     this.multiplayerModal.className = 'multiplayer-modal-overlay fixed inset-0 bg-black/70 backdrop-blur-sm z-[2000] hidden flex items-end sm:items-center justify-center';
     this.multiplayerModal.innerHTML = `
-      <div class="multiplayer-modal w-full max-w-md bg-card border-t-2 sm:border-2 border-primary sm:rounded-2xl shadow-2xl">
-        <div class="p-6 space-y-5">
+      <div class="multiplayer-modal w-full max-w-md bg-card border-t-2 sm:border-2 border-primary sm:rounded-2xl shadow-2xl overflow-y-auto max-h-[90vh]">
+        <div class="p-5 sm:p-6 space-y-4 sm:space-y-5 pb-[max(1.25rem,env(safe-area-inset-bottom,0px))]">
           <!-- Header -->
           <div class="flex items-center justify-between">
             <h2 class="text-xl font-bold text-primary flex items-center gap-2">
@@ -912,8 +917,8 @@ export default class DestinationPanel {
     this.mySeatModal = document.createElement('div');
     this.mySeatModal.className = 'my-seat-modal-overlay fixed inset-0 bg-black/70 backdrop-blur-sm z-[2000] hidden flex items-end sm:items-center justify-center';
     this.mySeatModal.innerHTML = `
-      <div class="my-seat-modal w-full max-w-md bg-card border-t-2 sm:border-2 border-primary sm:rounded-2xl shadow-2xl animate-slide-up">
-        <div class="p-6 space-y-5">
+      <div class="my-seat-modal w-full max-w-md bg-card border-t-2 sm:border-2 border-primary sm:rounded-2xl shadow-2xl animate-slide-up overflow-y-auto max-h-[90vh]">
+        <div class="p-5 sm:p-6 space-y-4 sm:space-y-5 pb-[max(1.25rem,env(safe-area-inset-bottom,0px))]">
           <h2 class="text-xl font-bold text-center text-primary">Set Your Seat Location</h2>
           
           <form class="my-seat-form space-y-4">
@@ -989,7 +994,7 @@ export default class DestinationPanel {
   // --- Toast Notification ---
   createToast() {
     this.toast = document.createElement('div');
-    this.toast.className = 'fixed top-20 left-1/2 -translate-x-1/2 z-[2001] hidden';
+    this.toast.className = 'fixed top-20 left-1/2 -translate-x-1/2 z-[2001] hidden w-max max-w-[calc(100vw-32px)]';
     document.body.appendChild(this.toast);
   }
 

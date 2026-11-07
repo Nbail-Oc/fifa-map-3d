@@ -39,9 +39,19 @@ export default class StaffDashboard {
     this.showClusters  = true;
     this.statsData     = {};
 
+    // ── Responsive / bottom-sheet state ──
+    this.mq            = window.matchMedia('(max-width: 768px)');
+    this.isMobile      = this.mq.matches;
+    this.sheetState    = 'peek';          // 'peek' | 'open'  (mobile only)
+    this.PEEK_H        = 148;             // px visible in peek state
+    this.DESKTOP_PANEL = 360;
+    this.TOP_BAR       = 48;
+    this.DESKTOP_BOT   = 44;
+
     this._buildPanel();
     this._startAlertTimer(opts.alertTemplates || []);
     this._startStatsTimer();
+    this._applyResponsive();
   }
 
   // ── Build the panel DOM ──────────────────────────────────────────────────
@@ -74,8 +84,107 @@ export default class StaffDashboard {
     this._updateAlertBadge();
   }
 
+  // ── Responsive layout / bottom sheet ─────────────────────────────────────
+
+  /**
+   * Insets the map viewport must avoid, in CSS px.
+   * Desktop: fixed right panel. Mobile: bottom sheet (height depends on state).
+   * @returns {{top:number, right:number, bottom:number}}
+   */
+  getInsets() {
+    if (this.isMobile) {
+      const h = this.sheetState === 'open'
+        ? Math.round(window.innerHeight * 0.68)
+        : this.PEEK_H;
+      return { top: this.TOP_BAR, right: 0, bottom: h };
+    }
+    return { top: this.TOP_BAR, right: this.DESKTOP_PANEL, bottom: this.DESKTOP_BOT };
+  }
+
+  /** (Re)apply mobile/desktop presentation and notify the scene. */
+  _applyResponsive() {
+    this.isMobile = this.mq.matches;
+    document.body.classList.toggle('sp-mobile', this.isMobile);
+
+    if (this.isMobile) {
+      const safeBot = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--sab') || '0');
+      const openH = Math.round(window.innerHeight * 0.68) + safeBot;
+      const h = this.sheetState === 'open' ? openH : this.PEEK_H;
+      this.panel.style.setProperty('--sp-sheet-h', `${h}px`);
+      this.panel.classList.toggle('sp-sheet-open', this.sheetState === 'open');
+      // Hide mini-stats bar on mobile (peek state already shows key numbers in top bar)
+      if (this.miniStats) this.miniStats.style.display = 'none';
+    } else {
+      this.panel.style.removeProperty('--sp-sheet-h');
+      this.panel.classList.remove('sp-sheet-open');
+      if (this.miniStats) this.miniStats.style.display = '';
+    }
+    this.opts.onLayoutChange?.();
+  }
+
+  _setSheet(state) {
+    if (this.sheetState === state) return;
+    this.sheetState = state;
+    this._applyResponsive();
+  }
+
+  _toggleSheet() {
+    this._setSheet(this.sheetState === 'open' ? 'peek' : 'open');
+  }
+
+  _wireGrabber() {
+    const grab = this.panel.querySelector('#sp-grabber');
+    if (!grab) return;
+
+    let startY = 0, startH = 0, dragging = false, moved = false;
+
+    const onDown = (e) => {
+      if (!this.isMobile) return;
+      dragging = true; moved = false;
+      startY = (e.touches ? e.touches[0].clientY : e.clientY);
+      startH = this.panel.getBoundingClientRect().height;
+      this.panel.style.transition = 'none';
+    };
+    const onMove = (e) => {
+      if (!dragging) return;
+      const y = (e.touches ? e.touches[0].clientY : e.clientY);
+      const dy = startY - y;
+      if (Math.abs(dy) > 4) moved = true;
+      const min = this.PEEK_H;
+      const max = Math.round(window.innerHeight * 0.82);
+      const h = Math.max(min, Math.min(max, startH + dy));
+      this.panel.style.setProperty('--sp-sheet-h', `${h}px`);
+      if (e.cancelable) e.preventDefault();
+    };
+    const onUp = () => {
+      if (!dragging) return;
+      dragging = false;
+      this.panel.style.transition = '';
+      if (!moved) { this._toggleSheet(); return; }
+      // Snap to nearest of peek / open based on current height
+      const h = this.panel.getBoundingClientRect().height;
+      const openH = Math.round(window.innerHeight * 0.62);
+      const mid = (this.PEEK_H + openH) / 2;
+      this._setSheet(h >= mid ? 'open' : 'peek');
+    };
+
+    grab.addEventListener('mousedown', onDown);
+    grab.addEventListener('touchstart', onDown, { passive: true });
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('touchmove', onMove, { passive: false });
+    window.addEventListener('mouseup', onUp);
+    window.addEventListener('touchend', onUp);
+    this._grabberCleanup = () => {
+      window.removeEventListener('mousemove', onMove);
+      window.removeEventListener('touchmove', onMove);
+      window.removeEventListener('mouseup', onUp);
+      window.removeEventListener('touchend', onUp);
+    };
+  }
+
   _panelHTML() {
     return `
+      <div class="sp-grabber" id="sp-grabber"><span class="sp-grabber-bar"></span></div>
       <div class="sp-header">
         <div class="sp-logo">
           <div class="sp-logo-icon">⚽</div>
@@ -204,14 +313,14 @@ export default class StaffDashboard {
     return `
       <div class="stb-left">
         <div class="stb-indicator"></div>
-        <span>Staff View</span>
-        <span class="stb-sep">|</span>
-        <span id="stb-total-count">Loading…</span>
+        <span class="stb-label">Staff</span>
+        <span class="stb-sep stb-sep-hide">|</span>
+        <span id="stb-total-count" class="stb-count">Loading…</span>
       </div>
       <div class="stb-center">FIFA WORLD CUP 2026 — STADIUM A</div>
       <div class="stb-right">
-        <span id="stb-clock"></span>
-        <a href="/" class="stb-fan-link">Fan View →</a>
+        <span id="stb-clock" class="stb-clock"></span>
+        <a href="/" class="stb-fan-link">Fan →</a>
       </div>
     `;
   }
@@ -239,8 +348,20 @@ export default class StaffDashboard {
         btn.classList.add('active');
         this.activeTab = btn.dataset.tab;
         this.panel.querySelector(`[data-pane="${this.activeTab}"]`).classList.add('active');
+        // On mobile, tapping a tab expands the sheet so its content is visible.
+        if (this.isMobile) this._setSheet('open');
       });
     });
+
+    // ── Bottom-sheet grabber (mobile): tap to toggle, drag to resize ──
+    this._wireGrabber();
+
+    // React to viewport width class changes + orientation/resize
+    const onMq = () => { this.sheetState = 'peek'; this._applyResponsive(); };
+    if (this.mq.addEventListener) this.mq.addEventListener('change', onMq);
+    else this.mq.addListener?.(onMq);
+    this._onResize = () => this._applyResponsive();
+    window.addEventListener('resize', this._onResize);
 
     // Search
     const inp = this.panel.querySelector('#sp-search');
@@ -695,6 +816,9 @@ export default class StaffDashboard {
   // ── Cleanup ──────────────────────────────────────────────────────────────
 
   destroy() {
+    this._grabberCleanup?.();
+    if (this._onResize) window.removeEventListener('resize', this._onResize);
+    document.body.classList.remove('sp-mobile');
     this.panel?.remove();
     this.topBar?.remove();
     this.miniStats?.remove();
@@ -708,10 +832,10 @@ export default class StaffDashboard {
     const style = document.createElement('style');
     style.id = 'sp-styles';
     style.textContent = `
-      @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+      @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800;900&display=swap');
 
       *, *::before, *::after { box-sizing: border-box; }
-      body { margin: 0; font-family: 'Inter', system-ui, sans-serif; background: #0f172a; color: #f1f5f9; overflow: hidden; }
+      body { margin: 0; font-family: 'Outfit', system-ui, sans-serif; background: #0f172a; color: #f1f5f9; overflow: hidden; }
 
       /* ── Top bar ── */
       #staff-topbar {
@@ -721,15 +845,15 @@ export default class StaffDashboard {
         padding: 0 16px; font-size: 12px; gap: 12px;
         backdrop-filter: blur(12px);
       }
-      .stb-left { display: flex; align-items: center; gap: 8px; font-weight: 600; color: #60a5fa; }
+      .stb-left { display: flex; align-items: center; gap: 8px; font-weight: 600; color: #e78a53; }
       .stb-indicator { width: 8px; height: 8px; border-radius: 50%; background: #10b981; animation: sp-pulse 2s infinite; }
       .stb-sep { color: #334155; }
       #stb-total-count { color: #f1f5f9; font-weight: 500; }
       .stb-center { font-size: 11px; font-weight: 700; letter-spacing: 0.08em; color: #64748b; text-transform: uppercase; }
       .stb-right { display: flex; align-items: center; gap: 12px; }
       #stb-clock { font-variant-numeric: tabular-nums; font-weight: 600; color: #94a3b8; }
-      .stb-fan-link { color: #60a5fa; text-decoration: none; font-weight: 600; padding: 4px 10px; border: 1px solid rgba(96,165,250,0.3); border-radius: 6px; transition: all 0.2s; }
-      .stb-fan-link:hover { background: rgba(96,165,250,0.15); }
+      .stb-fan-link { color: #e78a53; text-decoration: none; font-weight: 600; padding: 4px 10px; border: 1px solid rgba(231,138,83,0.3); border-radius: 6px; transition: all 0.2s; }
+      .stb-fan-link:hover { background: rgba(231,138,83,0.15); }
 
       /* ── Mini stats bar ── */
       #staff-ministats {
@@ -747,7 +871,7 @@ export default class StaffDashboard {
       /* ── Sidebar panel ── */
       #staff-panel {
         position: fixed; top: 40px; right: 0; bottom: 44px; width: 360px; z-index: 1050;
-        background: rgba(15,23,42,0.97); border-left: 1px solid rgba(59,130,246,0.2);
+        background: rgba(15,23,42,0.97); border-left: 1px solid rgba(231,138,83,0.2);
         display: flex; flex-direction: column;
         backdrop-filter: blur(20px); overflow: hidden;
       }
@@ -761,25 +885,25 @@ export default class StaffDashboard {
 
       /* ── Search ── */
       .sp-search-wrap { padding: 12px 12px 0; position: relative; flex-shrink: 0; }
-      .sp-search-inner { display: flex; align-items: center; gap: 8px; background: rgba(30,41,59,0.8); border: 1px solid rgba(96,165,250,0.2); border-radius: 10px; padding: 10px 14px; transition: border 0.2s; }
-      .sp-search-inner:focus-within { border-color: rgba(96,165,250,0.6); }
+      .sp-search-inner { display: flex; align-items: center; gap: 8px; background: rgba(30,41,59,0.8); border: 1px solid rgba(231,138,83,0.2); border-radius: 10px; padding: 10px 14px; transition: border 0.2s; }
+      .sp-search-inner:focus-within { border-color: rgba(231,138,83,0.6); }
       .sp-search-icon { font-size: 14px; }
       #sp-search { background: none; border: none; outline: none; color: #f1f5f9; font-size: 13px; flex: 1; font-family: inherit; }
       #sp-search::placeholder { color: #64748b; }
       .sp-search-clear { background: none; border: none; color: #64748b; cursor: pointer; font-size: 12px; padding: 0; line-height: 1; }
-      .sp-autocomplete { list-style: none; margin: 4px 0 0; padding: 4px; background: rgba(15,23,42,0.98); border: 1px solid rgba(96,165,250,0.25); border-radius: 10px; max-height: 260px; overflow-y: auto; box-shadow: 0 8px 32px rgba(0,0,0,0.5); position: absolute; left: 12px; right: 12px; z-index: 200; }
+      .sp-autocomplete { list-style: none; margin: 4px 0 0; padding: 4px; background: rgba(15,23,42,0.98); border: 1px solid rgba(231,138,83,0.25); border-radius: 10px; max-height: 260px; overflow-y: auto; box-shadow: 0 8px 32px rgba(0,0,0,0.5); position: absolute; left: 12px; right: 12px; z-index: 200; }
       .sp-autocomplete.hidden { display: none; }
       .sp-ac-item { display: flex; align-items: center; gap: 10px; padding: 10px; border-radius: 8px; cursor: pointer; transition: background 0.15s; }
-      .sp-ac-item:hover { background: rgba(96,165,250,0.1); }
+      .sp-ac-item:hover { background: rgba(231,138,83,0.1); }
       .sp-ac-badge { padding: 2px 6px; border-radius: 4px; font-size: 10px; font-weight: 700; color: #fff; flex-shrink: 0; }
       .sp-ac-name { font-size: 13px; font-weight: 600; color: #f1f5f9; }
       .sp-ac-zone { font-size: 11px; color: #64748b; }
-      .sp-ac-go { margin-left: auto; padding: 4px 10px; background: rgba(96,165,250,0.15); border: 1px solid rgba(96,165,250,0.3); border-radius: 6px; color: #60a5fa; font-size: 11px; font-weight: 600; cursor: pointer; font-family: inherit; flex-shrink: 0; }
+      .sp-ac-go { margin-left: auto; padding: 4px 10px; background: rgba(231,138,83,0.15); border: 1px solid rgba(231,138,83,0.3); border-radius: 6px; color: #e78a53; font-size: 11px; font-weight: 600; cursor: pointer; font-family: inherit; flex-shrink: 0; }
 
       /* ── Tabs ── */
       .sp-tabs { display: flex; padding: 10px 12px 0; gap: 4px; flex-shrink: 0; }
-      .sp-tab { flex: 1; padding: 8px 4px; background: transparent; border: 1px solid transparent; border-radius: 8px; color: #64748b; font-size: 11px; font-weight: 600; cursor: pointer; font-family: inherit; transition: all 0.2s; white-space: nowrap; }
-      .sp-tab.active { background: rgba(96,165,250,0.15); border-color: rgba(96,165,250,0.35); color: #60a5fa; }
+      .sp-tab { flex: 1; padding: 8px 4px; background: transparent; border: 1px solid transparent; border-radius: 8px; color: #64748b; font-size: 11px; font-weight: 600; cursor: pointer; font-family: inherit; transition: all 0.2s; white-space: nowrap; touch-action: manipulation; }
+      .sp-tab.active { background: rgba(231,138,83,0.15); border-color: rgba(231,138,83,0.35); color: #e78a53; }
       .sp-tab:hover:not(.active) { color: #94a3b8; background: rgba(255,255,255,0.04); }
       .sp-badge { display: inline-flex; align-items: center; justify-content: center; min-width: 16px; height: 16px; background: #ef4444; border-radius: 8px; font-size: 9px; font-weight: 700; color: white; padding: 0 4px; margin-left: 3px; }
       .sp-badge.hidden { display: none; }
@@ -802,7 +926,7 @@ export default class StaffDashboard {
       .sp-switch input { opacity: 0; width: 0; height: 0; }
       .sp-slider { position: absolute; inset: 0; background: #334155; border-radius: 22px; cursor: pointer; transition: background 0.2s; }
       .sp-slider::before { content: ''; position: absolute; width: 16px; height: 16px; left: 3px; bottom: 3px; background: white; border-radius: 50%; transition: transform 0.2s; }
-      .sp-switch input:checked + .sp-slider { background: #3b82f6; }
+      .sp-switch input:checked + .sp-slider { background: #e78a53; }
       .sp-switch input:checked + .sp-slider::before { transform: translateX(16px); }
 
       /* ── GPS self-locator box ── */
@@ -822,8 +946,8 @@ export default class StaffDashboard {
       .sp-gps-btn-center:hover { background: rgba(96,165,250,0.12); border-color: rgba(96,165,250,0.35); color: #60a5fa; }
       .sp-gps-calib { display: flex; gap: 6px; align-items: center; }
       .sp-calib-select { flex: 1; min-width: 0; background: #1e293b; border: 1px solid #334155; border-radius: 6px; color: #f1f5f9; padding: 6px 8px; font-size: 11px; font-family: inherit; }
-      .sp-calib-btn { padding: 6px 10px; background: #3b82f6; border: none; border-radius: 6px; color: #fff; font-size: 11px; font-weight: 700; cursor: pointer; font-family: inherit; white-space: nowrap; transition: background 0.2s; }
-      .sp-calib-btn:hover { background: #2563eb; }
+      .sp-calib-btn { padding: 6px 10px; background: #e78a53; border: none; border-radius: 6px; color: #fff; font-size: 11px; font-weight: 700; cursor: pointer; font-family: inherit; white-space: nowrap; transition: background 0.2s; }
+      .sp-calib-btn:hover { background: #d87943; }
       .sp-calib-clear { padding: 6px 10px; background: rgba(30,41,59,0.8); border: 1px solid #334155; border-radius: 6px; color: #94a3b8; font-size: 11px; font-weight: 600; cursor: pointer; font-family: inherit; transition: all 0.2s; }
       .sp-calib-clear:hover { background: rgba(100,116,139,0.2); color: #e2e8f0; }
       .sp-calib-hint { font-size: 10px; color: #475569; text-align: center; }
@@ -836,8 +960,8 @@ export default class StaffDashboard {
       /* ── Staff list ── */
       .sp-filter-row { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 4px; }
       .sp-filter-chip { padding: 4px 10px; background: transparent; border: 1px solid rgba(100,116,139,0.25); border-radius: 20px; color: #64748b; font-size: 11px; font-weight: 600; cursor: pointer; font-family: inherit; transition: all 0.2s; }
-      .sp-filter-chip.active { background: rgba(96,165,250,0.15); border-color: #60a5fa; color: #60a5fa; }
-      .sp-count-badge { display: inline-flex; align-items: center; justify-content: center; min-width: 20px; height: 18px; background: rgba(96,165,250,0.15); border-radius: 10px; font-size: 10px; color: #60a5fa; padding: 0 5px; margin-left: 6px; font-weight: 700; }
+      .sp-filter-chip.active { background: rgba(231,138,83,0.15); border-color: #e78a53; color: #e78a53; }
+      .sp-count-badge { display: inline-flex; align-items: center; justify-content: center; min-width: 20px; height: 18px; background: rgba(231,138,83,0.15); border-radius: 10px; font-size: 10px; color: #e78a53; padding: 0 5px; margin-left: 6px; font-weight: 700; }
       .sp-staff-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
       .sp-staff-item { display: flex; align-items: center; gap: 10px; padding: 10px 12px; background: rgba(30,41,59,0.5); border: 1px solid rgba(100,116,139,0.12); border-radius: 10px; cursor: pointer; transition: all 0.15s; }
       .sp-staff-item:hover { background: rgba(96,165,250,0.08); border-color: rgba(96,165,250,0.2); }
@@ -849,7 +973,7 @@ export default class StaffDashboard {
       .sp-staff-zone { font-size: 10px; color: #64748b; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
       .sp-staff-actions { display: flex; gap: 4px; flex-shrink: 0; }
       .sp-ico-btn { width: 30px; height: 30px; border-radius: 8px; border: 1px solid rgba(100,116,139,0.2); background: rgba(30,41,59,0.7); cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 14px; transition: all 0.2s; }
-      .sp-ico-btn:hover { background: rgba(96,165,250,0.15); border-color: rgba(96,165,250,0.35); }
+      .sp-ico-btn:hover { background: rgba(231,138,83,0.15); border-color: rgba(231,138,83,0.35); }
 
       /* ── Stats ── */
       .sp-stat-cards { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
@@ -909,7 +1033,7 @@ export default class StaffDashboard {
       .sp-modal-close:hover { background: rgba(100,116,139,0.2); }
 
       /* ── Toasts ── */
-      #sp-toast-wrap { position: fixed; top: 50px; right: 370px; z-index: 2000; display: flex; flex-direction: column; gap: 8px; pointer-events: none; }
+      #sp-toast-wrap { position: fixed; top: 50px; right: 370px; z-index: 2000; display: flex; flex-direction: column; gap: 8px; pointer-events: none; max-width: calc(100vw - 380px); }
       .sp-toast { background: rgba(15,23,42,0.95); border: 1px solid rgba(100,116,139,0.3); border-left: 3px solid #3b82f6; border-radius: 10px; padding: 10px 14px; display: flex; align-items: center; gap: 8px; font-size: 12px; font-weight: 600; color: #f1f5f9; max-width: 280px; backdrop-filter: blur(12px); animation: sp-slide-in 0.25s ease; transition: opacity 0.4s, transform 0.4s; box-shadow: 0 4px 20px rgba(0,0,0,0.4); }
       .sp-toast.sp-toast-hide { opacity: 0; transform: translateX(20px); }
 
@@ -917,12 +1041,179 @@ export default class StaffDashboard {
       @keyframes sp-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
       @keyframes sp-slide-in { from { opacity: 0; transform: translateY(-8px); } to { opacity: 1; transform: translateY(0); } }
 
-      /* ── Mobile responsive ── */
+      /* ── Grabber ── */
+      #sp-grabber {
+        display: none;
+        justify-content: center;
+        align-items: center;
+        padding: 10px 0 6px;
+        cursor: grab;
+        flex-shrink: 0;
+        touch-action: none;
+        -webkit-tap-highlight-color: transparent;
+      }
+      #sp-grabber:active { cursor: grabbing; }
+      .sp-grabber-bar {
+        display: block;
+        width: 36px;
+        height: 4px;
+        background: rgba(100,116,139,0.45);
+        border-radius: 2px;
+        transition: background 0.2s, width 0.2s;
+      }
+      #sp-grabber:hover .sp-grabber-bar,
+      #sp-grabber:active .sp-grabber-bar {
+        background: rgba(96,165,250,0.6);
+        width: 44px;
+      }
+
+      /* ─────────────────────────────────────────────────────────────────
+         Mobile layout — driven by both:
+           • CSS media query  (real device / DevTools narrow viewport)
+           • body.sp-mobile   (JS matchMedia — works at any CSS viewport)
+         ───────────────────────────────────────────────────────────────── */
+      @media (max-width: 768px), body.sp-mobile { /* fallback selector trick */
+        /* intentionally empty — real rules below under both selectors */
+      }
+
+      /* Top bar full-width, taller */
+      @media (max-width: 768px) { #staff-topbar { right: 0; height: 48px; padding: 0 12px; } }
+      body.sp-mobile #staff-topbar  { right: 0; height: 48px; padding: 0 12px; }
+
+      /* Hide centre text & clock — at 480px (landscape phones) and below */
+      @media (max-width: 480px) { .stb-center, .stb-sep-hide, .stb-clock { display: none; } }
+      /* Hide at 768px too (desktop panel collapses) */
+      @media (max-width: 768px) { .stb-center, .stb-sep-hide, .stb-clock { display: none; } }
+      body.sp-mobile .stb-center,
+      body.sp-mobile .stb-sep-hide,
+      body.sp-mobile .stb-clock { display: none; }
+
+      body.sp-mobile .stb-fan-link { font-size: 11px; padding: 5px 10px; }
+      @media (max-width: 768px) { .stb-fan-link { font-size: 11px; padding: 5px 10px; } }
+
+      /* Hide mini-stats bar completely on mobile */
+      @media (max-width: 768px) { #staff-ministats { display: none !important; } }
+      body.sp-mobile #staff-ministats { display: none !important; }
+
+      /* ── Panel becomes a bottom sheet ── */
       @media (max-width: 768px) {
-        #staff-topbar { right: 0; }
-        #staff-ministats { right: 0; bottom: 340px; left: 0; }
-        #staff-panel { top: 40px; left: 0; right: 0; bottom: 0; width: 100%; height: 340px; top: auto; border-left: none; border-top: 1px solid rgba(59,130,246,0.2); }
-        #sp-toast-wrap { right: 10px; top: 50px; }
+        #staff-panel {
+          top: auto !important;
+          left: 0;
+          right: 0;
+          bottom: 0;
+          width: 100% !important;
+          height: var(--sp-sheet-h, 148px) !important;
+          max-height: 92vh;
+          border-left: none;
+          border-top: 1px solid rgba(231,138,83,0.25);
+          border-radius: 20px 20px 0 0;
+          transition: height 0.32s cubic-bezier(0.4,0,0.2,1);
+          box-shadow: 0 -8px 40px rgba(0,0,0,0.55);
+          padding-bottom: env(safe-area-inset-bottom, 0px);
+        }
+      }
+      body.sp-mobile #staff-panel {
+        top: auto !important;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        width: 100% !important;
+        height: var(--sp-sheet-h, 148px) !important;
+        max-height: 92vh;
+        border-left: none;
+        border-top: 1px solid rgba(231,138,83,0.25);
+        border-radius: 20px 20px 0 0;
+        transition: height 0.32s cubic-bezier(0.4,0,0.2,1);
+        box-shadow: 0 -8px 40px rgba(0,0,0,0.55);
+        padding-bottom: env(safe-area-inset-bottom, 0px);
+      }
+
+      /* Show grabber */
+      @media (max-width: 768px) { #sp-grabber { display: flex; } }
+      body.sp-mobile #sp-grabber { display: flex; }
+
+      /* Tabs — larger touch targets */
+      @media (max-width: 768px) {
+        .sp-tabs { padding: 0 10px; gap: 3px; }
+        .sp-tab  { padding: 10px 4px; font-size: 12px; border-radius: 10px; min-height: 44px; }
+      }
+      body.sp-mobile .sp-tabs { padding: 0 10px; gap: 3px; }
+      body.sp-mobile .sp-tab  { padding: 10px 4px; font-size: 12px; border-radius: 10px; min-height: 44px; }
+
+      /* Header compact */
+      @media (max-width: 768px) { .sp-header { padding: 10px 14px; } .sp-logo-title { font-size: 14px; } .sp-logo-icon { font-size: 20px; } }
+      body.sp-mobile .sp-header      { padding: 10px 14px; }
+      body.sp-mobile .sp-logo-title  { font-size: 14px; }
+      body.sp-mobile .sp-logo-icon   { font-size: 20px; }
+
+      /* Body / pane padding */
+      @media (max-width: 768px) { .sp-pane { padding: 10px 12px 24px; } }
+      body.sp-mobile .sp-pane { padding: 10px 12px 24px; }
+
+      /* Peek state: hide content, show only grabber + tabs */
+      @media (max-width: 768px) {
+        #staff-panel:not(.sp-sheet-open) .sp-header     { display: none; }
+        #staff-panel:not(.sp-sheet-open) .sp-search-wrap{ display: none; }
+        #staff-panel:not(.sp-sheet-open) .sp-body       { display: none; }
+        #staff-panel:not(.sp-sheet-open) .sp-tabs       { padding-top: 4px; }
+      }
+      body.sp-mobile #staff-panel:not(.sp-sheet-open) .sp-header      { display: none; }
+      body.sp-mobile #staff-panel:not(.sp-sheet-open) .sp-search-wrap { display: none; }
+      body.sp-mobile #staff-panel:not(.sp-sheet-open) .sp-body        { display: none; }
+      body.sp-mobile #staff-panel:not(.sp-sheet-open) .sp-tabs        { padding-top: 4px; }
+
+      /* GPS calib wraps */
+      @media (max-width: 768px) { .sp-gps-calib { flex-wrap: wrap; } .sp-calib-select { min-width: 100%; } }
+      body.sp-mobile .sp-gps-calib    { flex-wrap: wrap; }
+      body.sp-mobile .sp-calib-select { min-width: 100%; }
+
+      /* Stat cards */
+      @media (max-width: 768px) { .sp-stat-cards { gap: 6px; } .sp-stat-card { padding: 10px 12px; } .sp-stat-value { font-size: 14px; } }
+      body.sp-mobile .sp-stat-cards { gap: 6px; }
+      body.sp-mobile .sp-stat-card  { padding: 10px 12px; }
+      body.sp-mobile .sp-stat-value { font-size: 14px; }
+
+      /* Bar rows */
+      @media (max-width: 768px) { .sp-bar-row { grid-template-columns: 80px 1fr 36px; gap: 6px; } .sp-gate-row { grid-template-columns: 52px 1fr 48px; gap: 6px; } }
+      body.sp-mobile .sp-bar-row  { grid-template-columns: 80px 1fr 36px; gap: 6px; }
+      body.sp-mobile .sp-gate-row { grid-template-columns: 52px 1fr 48px; gap: 6px; }
+
+      /* Toasts */
+      @media (max-width: 768px) { #sp-toast-wrap { right: 10px; left: 10px; top: 58px; align-items: flex-end; } .sp-toast { max-width: 100%; } }
+      body.sp-mobile #sp-toast-wrap { right: 10px; left: 10px; top: 58px; align-items: flex-end; }
+      body.sp-mobile .sp-toast      { max-width: 100%; }
+
+      /* Filter chips */
+      @media (max-width: 768px) { .sp-filter-row { flex-wrap: nowrap; overflow-x: auto; -webkit-overflow-scrolling: touch; padding-bottom: 4px; scrollbar-width: none; } .sp-filter-row::-webkit-scrollbar { display: none; } .sp-filter-chip { flex-shrink: 0; } }
+      body.sp-mobile .sp-filter-row  { flex-wrap: nowrap; overflow-x: auto; -webkit-overflow-scrolling: touch; padding-bottom: 4px; scrollbar-width: none; }
+      body.sp-mobile .sp-filter-chip { flex-shrink: 0; }
+
+      /* Fly-to grid */
+      @media (max-width: 768px) { .sp-flyto-grid { grid-template-columns: 1fr 1fr 1fr; gap: 6px; } .sp-flyto-btn { font-size: 11px; padding: 8px 6px; } }
+      body.sp-mobile .sp-flyto-grid { grid-template-columns: 1fr 1fr 1fr; gap: 6px; }
+      body.sp-mobile .sp-flyto-btn  { font-size: 11px; padding: 8px 6px; }
+
+      /* Alerts */
+      @media (max-width: 768px) { .sp-alert-card { padding: 12px; } .sp-alert-btns { flex-wrap: wrap; } .sp-alert-act-btn, .sp-alert-nav-btn { min-height: 40px; } }
+      body.sp-mobile .sp-alert-card    { padding: 12px; }
+      body.sp-mobile .sp-alert-btns    { flex-wrap: wrap; }
+      body.sp-mobile .sp-alert-act-btn,
+      body.sp-mobile .sp-alert-nav-btn { min-height: 40px; }
+
+      /* Staff items */
+      @media (max-width: 768px) { .sp-staff-item { padding: 12px; } .sp-ico-btn { width: 36px; height: 36px; font-size: 16px; } }
+      body.sp-mobile .sp-staff-item { padding: 12px; }
+      body.sp-mobile .sp-ico-btn    { width: 36px; height: 36px; font-size: 16px; }
+
+      /* Contact modal */
+      @media (max-width: 768px) { .sp-modal-box { min-width: unset; width: calc(100vw - 40px); } }
+      body.sp-mobile .sp-modal-box { min-width: unset; width: calc(100vw - 40px); }
+
+      /* Landscape phone */
+      @media (max-width: 768px) and (orientation: landscape) {
+        #staff-panel { max-height: 80vh; }
+        #staff-panel.sp-sheet-open { height: 70vh; }
       }
     `;
     document.head.appendChild(style);

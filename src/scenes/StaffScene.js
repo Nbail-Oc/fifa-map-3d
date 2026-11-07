@@ -159,6 +159,7 @@ export default class StaffScene extends Phaser.Scene {
       onCalibrate:      (poiId) => this._calibrate(poiId),
       onClearCalib:     () => this._clearCalibration(),
       onCenterSelf:     () => this._centerOnSelf(),
+      onLayoutChange:   () => this.layoutGameView(),
     });
 
     // Reflect any saved calibration in the sidebar status line
@@ -167,6 +168,9 @@ export default class StaffScene extends Phaser.Scene {
         `GPS inactive · ${this.calibrationRefs.length}/2 points saved`, 'idle'
       );
     }
+
+    // Re-apply layout now that dashboard exists (first call at line 132 had no dashboard yet)
+    this.layoutGameView();
 
     // ── Interactions ─────────────────────────────────────────────────────────
     this.input.addPointer(2);
@@ -695,11 +699,15 @@ export default class StaffScene extends Phaser.Scene {
   layoutGameView() {
     const W = this.scale.width;
     const H = this.scale.height;
-    const panelW  = 360;
-    const topBar  = 40;
-    const botBar  = 44;
-    const gameW   = W - panelW;
-    const gameH   = H - topBar - botBar;
+
+    // Read insets from dashboard if available (handles mobile/desktop automatically)
+    const insets = this.dashboard?.getInsets?.() ?? { top: 40, right: 360, bottom: 44 };
+    const topBar = insets.top;
+    const panelW = insets.right;
+    const botBar = insets.bottom;
+
+    const gameW = W - panelW;
+    const gameH = H - topBar - botBar;
 
     const pad = 32;
     const containZoom = Math.min(
@@ -719,6 +727,23 @@ export default class StaffScene extends Phaser.Scene {
       this.mapLeft + this.isoMapWidth / 2,
       this.mapTop  + this.isoMapHeight / 2
     );
+
+    // Reposition map-control buttons
+    this._repositionMapButtons(insets);
+  }
+
+  _repositionMapButtons(insets) {
+    if (!this._toggleBtn) return;
+    const isMobile = (insets.right === 0);
+    if (isMobile) {
+      // Place buttons top-left, below the top bar
+      Object.assign(this._toggleBtn.style, { top: `${insets.top + 8}px`, right: 'auto', left: '10px' });
+      if (this._rotateBtn) Object.assign(this._rotateBtn.style, { top: `${insets.top + 8}px`, right: 'auto', left: '120px' });
+    } else {
+      // Desktop: to the left of the panel
+      Object.assign(this._toggleBtn.style, { top: '48px', right: `${insets.right + 10}px`, left: 'auto' });
+      if (this._rotateBtn) Object.assign(this._rotateBtn.style, { top: '48px', right: `${insets.right + 118}px`, left: 'auto' });
+    }
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
@@ -769,18 +794,18 @@ export default class StaffScene extends Phaser.Scene {
       fontSize: '12px', fontWeight: '600', cursor: 'pointer',
       boxShadow: '0 4px 6px -1px rgb(0 0 0/0.2)'
     };
-    const make = (id, text, top, right, cb) => {
+    const make = (id, text, cb) => {
       const btn = document.createElement('button');
       btn.id = id; btn.textContent = text;
-      Object.assign(btn.style, style, { top, right });
+      Object.assign(btn.style, style);
       btn.addEventListener('click', cb);
       document.body.appendChild(btn);
       return btn;
     };
 
-    // GPS, Center Me, and calibration now live in the dashboard sidebar (Map tab).
-    this._toggleBtn = make('sp-proj-btn',   'Switch to 2D', '48px', '370px', () => this._toggleProjection());
-    this._rotateBtn = make('sp-rotate-btn', '↻ Rotate Map', '48px', '478px', () => this._rotateMap());
+    this._toggleBtn = make('sp-proj-btn',   'Switch to 2D', () => this._toggleProjection());
+    this._rotateBtn = make('sp-rotate-btn', '↻ Rotate Map', () => this._rotateMap());
+    // Initial position will be set by layoutGameView -> _repositionMapButtons
   }
 
   _removeMapButtons() {
